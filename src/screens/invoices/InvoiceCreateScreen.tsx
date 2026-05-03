@@ -130,6 +130,7 @@ type ParsedBookingPaste = {
   pickupAirline?: string;
   pickupFlightNo?: string;
   useAirportPickup?: boolean;
+  childSeatsSummary?: string;
 };
 
 /**
@@ -143,7 +144,8 @@ function parsePastedBookingDetailsBlock(raw: string): ParsedBookingPaste | null 
   const lower = t.toLowerCase();
   const looksLikeCopyAll =
     lower.includes('booking reference:') ||
-    (lower.includes('name:') && (lower.includes('phone:') || lower.includes('trip date:')));
+    (lower.includes('name:') && (lower.includes('phone:') || lower.includes('trip date:'))) ||
+    lower.includes('child seats:');
   if (!looksLikeCopyAll) {
     return null;
   }
@@ -174,6 +176,8 @@ function parsePastedBookingDetailsBlock(raw: string): ParsedBookingPaste | null 
       if (/^\d{4}-\d{2}-\d{2}$/.test(val) && ymdToLocalDate(val)) {
         out.pickupDateYmd = val;
       }
+    } else if (key === 'child seats') {
+      out.childSeatsSummary = val;
     }
   }
   if (
@@ -181,7 +185,8 @@ function parsePastedBookingDetailsBlock(raw: string): ParsedBookingPaste | null 
     out.fullName ||
     out.phoneNumber ||
     out.pickupDateYmd ||
-    out.pickupFlightNo
+    out.pickupFlightNo ||
+    out.childSeatsSummary
   ) {
     return out;
   }
@@ -212,6 +217,7 @@ export function InvoiceCreateScreen() {
   const [dropoffFlightNo, setDropoffFlightNo] = useState('');
 
   const [priceText, setPriceText] = useState('');
+  const [childSeatsSummary, setChildSeatsSummary] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [loadingPrice, setLoadingPrice] = useState(false);
@@ -231,6 +237,7 @@ export function InvoiceCreateScreen() {
     setDropoffAddress(p.dropoffAddress ?? '');
     setDropoffAirline(p.dropoffAirline ?? '');
     setDropoffFlightNo(p.dropoffFlightNo ?? '');
+    setChildSeatsSummary(p.childSeatsSummary ?? '');
   }, []);
 
   useFocusEffect(
@@ -273,6 +280,9 @@ export function InvoiceCreateScreen() {
         if (parsed.pickupFlightNo) {
           setPickupFlightNo(parsed.pickupFlightNo);
         }
+      }
+      if (parsed.childSeatsSummary) {
+        setChildSeatsSummary(parsed.childSeatsSummary);
       }
       setBookingReference(parsed.bookingReference ?? '');
       return;
@@ -340,6 +350,7 @@ export function InvoiceCreateScreen() {
 
     setSubmitting(true);
     try {
+      const cs = childSeatsSummary.trim();
       const body = {
         fullName: fullName.trim(),
         phoneNumber: phoneNumber.trim(),
@@ -354,6 +365,7 @@ export function InvoiceCreateScreen() {
         dropoffAirline: dropoffKind === 'AIRPORT' ? dropoffAirline.trim() : undefined,
         dropoffFlightNo: dropoffKind === 'AIRPORT' ? dropoffFlightNo.trim() : undefined,
         priceAmount: priceNum,
+        ...(cs ? { childSeatsSummary: cs } : {}),
       };
       const created = await invoicesApi.create(accessToken, body);
       try {
@@ -394,8 +406,9 @@ export function InvoiceCreateScreen() {
           style={styles.bookingRefInput}
         />
         <Text style={styles.pasteHint}>
-          Paste the whole block from a booking’s Copy all details to fill name, phone, trip date, and
-          flight (pick-up switches to Airport when a flight line is present).
+          Paste the whole block from a booking’s Copy all details to fill name, phone, trip date,
+          flight, and child seats when present (pick-up switches to Airport when a flight line is
+          present).
         </Text>
         <Pressable
           style={[styles.secondaryBtn, loadingPrice && styles.secondaryBtnDisabled]}
@@ -419,6 +432,14 @@ export function InvoiceCreateScreen() {
           value={phoneNumber}
           onChangeText={setPhoneNumber}
           keyboardType="phone-pad"
+        />
+        <TextField
+          label="Child seats (optional)"
+          value={childSeatsSummary}
+          onChangeText={setChildSeatsSummary}
+          placeholder="From booking if needed; omit to copy from assigned booking"
+          multiline
+          textAlignVertical="top"
         />
 
         {Platform.OS === 'web' ? (

@@ -34,8 +34,13 @@ export type Booking = {
   status: string;
   luggageCount: number;
   passengerCount: number;
+  infantCarrierCount: number;
+  childSeatCount: number;
+  boosterCount: number;
   note: string | null;
   createdAt: string;
+  /** Present when status is `completed`; used for past-list ordering on the server. */
+  completedAt?: string | null;
   user: BookingUserSummary;
   driver: BookingDriverSummary;
 };

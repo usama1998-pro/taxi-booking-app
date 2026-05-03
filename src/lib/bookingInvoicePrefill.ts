@@ -1,7 +1,11 @@
 import type { Booking } from '../types/booking';
 import type { InvoiceCreatePrefill } from '../types/invoice';
 
-import { bookingDropoffLabel, bookingPickupLabel } from './bookingFormat';
+import {
+  bookingChildSeatsSummary,
+  bookingDropoffLabel,
+  bookingPickupLabel,
+} from './bookingFormat';
 
 function scheduledLocalYmd(iso: string): string | null {
   const d = new Date(iso);
@@ -37,6 +41,8 @@ export function bookingToInvoicePrefill(b: Booking): InvoiceCreatePrefill {
   const pickupAddr = cleanLocationLabel(bookingPickupLabel(b));
   const dropAddr = cleanLocationLabel(bookingDropoffLabel(b));
   const ref = b.bookingReference?.trim() ?? '';
+  const seats = bookingChildSeatsSummary(b);
+  const childSeatsSummary = seats ?? undefined;
 
   if (b.flightNumber?.trim()) {
     const sp = splitFlight(b.flightNumber);
@@ -52,6 +58,7 @@ export function bookingToInvoicePrefill(b: Booking): InvoiceCreatePrefill {
       pickupFlightNo: sp.flightNo,
       dropoffKind: 'LOCATION',
       dropoffAddress: dropAddr,
+      childSeatsSummary,
     };
   }
 
@@ -65,5 +72,6 @@ export function bookingToInvoicePrefill(b: Booking): InvoiceCreatePrefill {
     pickupAddress: pickupAddr,
     dropoffKind: 'LOCATION',
     dropoffAddress: dropAddr,
+    childSeatsSummary,
   };
 }

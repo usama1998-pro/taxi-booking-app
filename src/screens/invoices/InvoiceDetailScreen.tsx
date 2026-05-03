@@ -146,6 +146,9 @@ export function InvoiceDetailScreen() {
           <Row label="Pick-up date" value={pickupDateStr} />
           <Row label={pickupLabel} value={pickup} />
           <Row label={dropLabel} value={dropoff} />
+          {inv.childSeatsSummary?.trim() ? (
+            <Row label="Child seats" value={inv.childSeatsSummary.trim()} />
+          ) : null}
         </View>
 
         <View style={styles.card}>
@@ -219,12 +222,20 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
     gap: spacing.md,
     paddingVertical: spacing.xs,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  rowLabel: { ...typography.caption, color: colors.primaryMuted, flexShrink: 0 },
-  rowValue: { ...typography.body, color: colors.primary, flex: 1, textAlign: 'right' },
+  rowLabel: { ...typography.caption, color: colors.primaryMuted, flexShrink: 0, paddingTop: 2 },
+  rowValue: {
+    ...typography.body,
+    color: colors.primary,
+    flex: 1,
+    minWidth: 0,
+    flexShrink: 1,
+    textAlign: 'right',
+  },
   error: { ...typography.body, color: colors.danger },
 });

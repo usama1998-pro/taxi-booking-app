@@ -29,5 +29,11 @@ export function formatInvoiceMoney(amount: number): string {
 export function invoiceListSubtitle(inv: DriverInvoice): string {
   const d = new Date(inv.pickupDate);
   const date = Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-GB');
-  return `${inv.bookingReference} · ${date} · ${formatInvoiceMoney(inv.totalAmount)}`;
+  let s = `${inv.bookingReference} · ${date} · ${formatInvoiceMoney(inv.totalAmount)}`;
+  const seats = inv.childSeatsSummary?.trim();
+  if (seats) {
+    const short = seats.length > 44 ? `${seats.slice(0, 41)}…` : seats;
+    s += ` · ${short}`;
+  }
+  return s;
 }

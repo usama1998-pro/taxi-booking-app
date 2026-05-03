@@ -43,6 +43,27 @@ export function bookingPassengerLabel(b: Booking): string {
   );
 }
 
+/** Human-readable child seat request for drivers and summaries. */
+export function bookingChildSeatsSummary(b: Booking): string | null {
+  const infant = b.infantCarrierCount ?? 0;
+  const child = b.childSeatCount ?? 0;
+  const booster = b.boosterCount ?? 0;
+  if (infant === 0 && child === 0 && booster === 0) {
+    return null;
+  }
+  const parts: string[] = [];
+  if (infant > 0) {
+    parts.push(`${infant} infant carrier${infant === 1 ? '' : 's'}`);
+  }
+  if (child > 0) {
+    parts.push(`${child} child seat${child === 1 ? '' : 's'}`);
+  }
+  if (booster > 0) {
+    parts.push(`${booster} booster${booster === 1 ? '' : 's'}`);
+  }
+  return parts.join(', ');
+}
+
 export function formatMoney(amount: number, currency = 'EUR'): string {
   try {
     return new Intl.NumberFormat(undefined, {

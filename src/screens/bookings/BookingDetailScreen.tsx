@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { PrimaryButton, Screen } from '../../components';
 import { useAuth } from '../../context/AuthContext';
 import {
+  bookingChildSeatsSummary,
   bookingDropoffLabel,
   bookingPassengerLabel,
   bookingPickupLabel,
@@ -87,6 +88,10 @@ function buildCopyableSummary(b: Booking): string {
   if (b.bookingReference?.trim()) {
     lines.push(`Booking reference: ${b.bookingReference.trim()}`);
   }
+  const seats = bookingChildSeatsSummary(b);
+  if (seats) {
+    lines.push(`Child seats: ${seats}`);
+  }
   return lines.join('\n');
 }
 
@@ -99,6 +104,8 @@ export function BookingDetailScreen() {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [completing, setCompleting] = useState(false);
+  const [starting, setStarting] = useState(false);
 
   const load = useCallback(async () => {
     if (!accessToken) {
@@ -119,6 +126,61 @@ export function BookingDetailScreen() {
       setLoading(false);
     }
   }, [accessToken, uuid]);
+
+  const submitComplete = useCallback(async () => {
+    if (!accessToken) {
+      return;
+    }
+    setCompleting(true);
+    try {
+      const updated = await bookingsApi.update(accessToken, uuid, { status: 'completed' });
+      setBooking(updated);
+      Alert.alert('Trip complete', 'This booking is now under Past. Latest completed trips stay at the top there.');
+    } catch (e) {
+      logger.warn('BookingDetailScreen: mark complete failed', e);
+      Alert.alert('Could not update', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setCompleting(false);
+    }
+  }, [accessToken, uuid]);
+
+  const onMarkComplete = useCallback(() => {
+    Alert.alert(
+      'Mark trip complete?',
+      'It moves to Past trips. The list shows the most recently completed ride first.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Mark complete', onPress: () => void submitComplete() },
+      ],
+    );
+  }, [submitComplete]);
+
+  const submitStartRide = useCallback(async () => {
+    if (!accessToken) {
+      return;
+    }
+    setStarting(true);
+    try {
+      const updated = await bookingsApi.update(accessToken, uuid, { status: 'in_progress' });
+      setBooking(updated);
+      Alert.alert(
+        'Ride started',
+        'This booking is now under Current. Mark it complete when the trip ends.',
+      );
+    } catch (e) {
+      logger.warn('BookingDetailScreen: start ride failed', e);
+      Alert.alert('Could not update', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setStarting(false);
+    }
+  }, [accessToken, uuid]);
+
+  const onStartRide = useCallback(() => {
+    Alert.alert('Start ride?', 'This booking moves to your Current list.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Start', onPress: () => void submitStartRide() },
+    ]);
+  }, [submitStartRide]);
 
   useEffect(() => {
     void load();
@@ -141,6 +203,7 @@ export function BookingDetailScreen() {
   }
 
   const b = booking;
+  const childSeatsLine = bookingChildSeatsSummary(b);
 
   const customerNameForSign =
     b.customerName?.trim() || b.user?.fullName?.trim() || bookingPassengerLabel(b);
@@ -157,6 +220,12 @@ export function BookingDetailScreen() {
       params: { prefill },
     });
   };
+
+  const terminalStatuses = new Set(['completed', 'cancelled', 'canceled']);
+  const statusNorm = (b.status ?? '').trim().toLowerCase();
+  const isTerminal = terminalStatuses.has(statusNorm);
+  const canStartRide = statusNorm.length > 0 && !isTerminal && statusNorm !== 'in_progress';
+  const canMarkComplete = statusNorm === 'in_progress';
 
   return (
     <Screen>
@@ -182,6 +251,7 @@ export function BookingDetailScreen() {
           <Row label="Price" value={formatMoney(b.price)} />
           <Row label="Passengers" value={String(b.passengerCount)} />
           <Row label="Luggage" value={String(b.luggageCount)} />
+          {childSeatsLine ? <Row label="Child seats" value={childSeatsLine} /> : null}
           {b.flightNumber ? <Row label="Flight" value={b.flightNumber} copyable /> : null}
           {b.returnTime ? (
             <Row label="Return" value={formatDateShort(b.returnTime)} />
@@ -230,7 +300,35 @@ export function BookingDetailScreen() {
           <Text style={styles.cardTitle}>Record</Text>
           <Row label="Booking reference" value={b.bookingReference} copyable />
           <Row label="Created" value={formatDateShort(b.createdAt)} />
+          {b.completedAt ? <Row label="Completed" value={formatDateShort(b.completedAt)} /> : null}
         </View>
+
+        {canStartRide ? (
+          <View style={styles.completeSection}>
+            <PrimaryButton
+              label="Start ride"
+              onPress={onStartRide}
+              loading={starting}
+              style={styles.completePrimaryBtn}
+            />
+            <Text style={styles.completeHint}>
+              Moves this booking to Current. When the trip ends, mark it complete to send it to Past.
+            </Text>
+          </View>
+        ) : null}
+        {canMarkComplete ? (
+          <View style={styles.completeSection}>
+            <PrimaryButton
+              label="Mark trip complete"
+              onPress={onMarkComplete}
+              loading={completing}
+              style={styles.completePrimaryBtn}
+            />
+            <Text style={styles.completeHint}>
+              Moves this ride to Past. The most recently completed trip appears first there.
+            </Text>
+          </View>
+        ) : null}
       </ScrollView>
     </Screen>
   );
@@ -342,18 +440,20 @@ function Row({
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
       <View style={styles.rowValueWrap}>
-        {onValuePress ? (
-          <Pressable
-            onPress={onValuePress}
-            style={({ pressed }) => [styles.valuePressable, pressed && styles.valuePressablePressed]}
-            accessibilityRole="button"
-            accessibilityLabel={`Show pickup sign for ${label}`}
-          >
-            {valueText}
-          </Pressable>
-        ) : (
-          valueText
-        )}
+        <View style={styles.rowValueTextBlock}>
+          {onValuePress ? (
+            <Pressable
+              onPress={onValuePress}
+              style={({ pressed }) => [styles.valuePressable, pressed && styles.valuePressablePressed]}
+              accessibilityRole="button"
+              accessibilityLabel={`Show pickup sign for ${label}`}
+            >
+              {valueText}
+            </Pressable>
+          ) : (
+            valueText
+          )}
+        </View>
         {pickupSignPress ? (
           <Pressable
             onPress={pickupSignPress}
@@ -392,6 +492,14 @@ const styles = StyleSheet.create({
   sub: { ...typography.body, color: colors.primaryMuted, marginBottom: spacing.sm },
   invoiceFromBooking: { marginBottom: spacing.md, alignSelf: 'stretch' },
   invoicePrimaryBtn: { alignSelf: 'stretch' },
+  completeSection: { marginTop: spacing.lg, marginBottom: spacing.md, alignSelf: 'stretch' },
+  completePrimaryBtn: { alignSelf: 'stretch' },
+  completeHint: {
+    ...typography.caption,
+    color: colors.primaryMuted,
+    marginTop: spacing.sm,
+    lineHeight: 18,
+  },
   copyAllTop: { marginBottom: spacing.lg },
   card: {
     backgroundColor: colors.surface,
@@ -430,24 +538,40 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: spacing.md,
     paddingVertical: spacing.xs,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  rowLabel: { ...typography.caption, color: colors.primaryMuted, flexShrink: 0 },
+  rowLabel: {
+    ...typography.caption,
+    color: colors.primaryMuted,
+    flexShrink: 0,
+    paddingTop: 2,
+  },
   rowValueWrap: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'flex-end',
     gap: spacing.sm,
     minWidth: 0,
   },
-  rowValue: { ...typography.body, color: colors.primary, flexShrink: 1, textAlign: 'right' },
+  rowValueTextBlock: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'flex-end',
+  },
+  rowValue: {
+    ...typography.body,
+    color: colors.primary,
+    textAlign: 'right',
+    alignSelf: 'stretch',
+    width: '100%',
+  },
   rowValueTappable: { textDecorationLine: 'underline', textDecorationColor: colors.accent },
-  valuePressable: { flexShrink: 1, minWidth: 0 },
+  valuePressable: { alignSelf: 'stretch', width: '100%' },
   valuePressablePressed: { opacity: 0.75 },
   copyBtn: { padding: spacing.xs },
   error: { ...typography.body, color: colors.danger },

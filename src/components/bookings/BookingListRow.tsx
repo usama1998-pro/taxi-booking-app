@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
+  bookingChildSeatsSummary,
   bookingDropoffLabel,
   bookingPassengerLabel,
   bookingPickupLabel,
@@ -20,6 +21,7 @@ type BookingListRowProps = {
 
 export function BookingListRow({ booking, onPress, onPassengerNamePress }: BookingListRowProps) {
   const passengerLabel = bookingPassengerLabel(booking);
+  const childSeats = bookingChildSeatsSummary(booking);
   return (
     <Pressable
       accessibilityRole="button"
@@ -55,9 +57,16 @@ export function BookingListRow({ booking, onPress, onPassengerNamePress }: Booki
       </Text>
       <View style={styles.footer}>
         <Text style={styles.status}>{booking.status}</Text>
-        <Text style={styles.meta}>
-          {booking.passengerCount} pax · {booking.luggageCount} bags
-        </Text>
+        <View style={styles.footerRight}>
+          <Text style={styles.meta} numberOfLines={2}>
+            {booking.passengerCount} pax · {booking.luggageCount} bags
+          </Text>
+          {childSeats ? (
+            <Text style={styles.childSeatsLine} numberOfLines={4}>
+              {childSeats}
+            </Text>
+          ) : null}
+        </View>
       </View>
     </Pressable>
   );
@@ -91,16 +100,36 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
     marginTop: spacing.sm,
     paddingTop: spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
+  },
+  footerRight: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'flex-end',
   },
   status: {
     ...typography.caption,
     fontWeight: '700',
     color: colors.primary,
     textTransform: 'capitalize',
+    flexShrink: 0,
   },
-  meta: { ...typography.caption, color: colors.primaryMuted },
+  meta: {
+    ...typography.caption,
+    color: colors.primaryMuted,
+    textAlign: 'right',
+    maxWidth: '100%',
+  },
+  childSeatsLine: {
+    ...typography.caption,
+    color: colors.primaryMuted,
+    textAlign: 'right',
+    marginTop: spacing.xs,
+    maxWidth: '100%',
+  },
 });

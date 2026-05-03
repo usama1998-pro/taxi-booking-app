@@ -20,6 +20,7 @@ export type DriverInvoice = {
   taxAmount: number;
   totalAmount: number;
   sourceBookingUuid: string | null;
+  childSeatsSummary: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -69,6 +70,8 @@ export type InvoiceCreatePrefill = {
   dropoffAddress?: string;
   dropoffAirline?: string;
   dropoffFlightNo?: string;
+  /** Prefilled from booking when passenger requested child seats. */
+  childSeatsSummary?: string;
 };
 
 export type CreateDriverInvoiceInput = {
@@ -85,4 +88,6 @@ export type CreateDriverInvoiceInput = {
   dropoffAirline?: string;
   dropoffFlightNo?: string;
   priceAmount: number;
+  /** Sent to API; optional. Server fills from linked booking when omitted and reference matches. */
+  childSeatsSummary?: string;
 };

@@ -35,6 +35,30 @@ async function authorizedJson<T>(path: string, token: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+async function authorizedJsonPatch<T>(
+  path: string,
+  token: string,
+  body: Record<string, unknown>,
+): Promise<T> {
+  const url = `${API_BASE_URL}${path}`;
+  logger.debug('Bookings API PATCH', path);
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const msg = await readErrorMessage(res);
+    logger.warn('Bookings API error', { path, status: res.status, msg });
+    throw new Error(msg);
+  }
+  return (await res.json()) as T;
+}
+
 export const bookingsApi = {
   list(
     token: string,
@@ -58,5 +82,9 @@ export const bookingsApi = {
 
   getByUuid(token: string, uuid: string): Promise<Booking> {
     return authorizedJson<Booking>(`/bookings/${uuid}`, token);
+  },
+
+  update(token: string, uuid: string, body: Record<string, unknown>): Promise<Booking> {
+    return authorizedJsonPatch<Booking>(`/bookings/${uuid}`, token, body);
   },
 };

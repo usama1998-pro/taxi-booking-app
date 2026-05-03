@@ -61,7 +61,7 @@ export function BookingsListScreen() {
   const listRef = useRef<FlatList<Booking>>(null);
   const appendLockRef = useRef(false);
 
-  const [active, setActive] = useState<BookingListTimeScope>('current');
+  const [active, setActive] = useState<BookingListTimeScope>('upcoming');
   const [byScope, setByScope] = useState<Record<BookingListTimeScope, SectionState>>({
     past: emptySection(),
     current: emptySection(),
@@ -242,8 +242,8 @@ export function BookingsListScreen() {
     active === 'past'
       ? 'No past trips yet.'
       : active === 'current'
-        ? 'No active or overdue trips right now.'
-        : 'Nothing scheduled ahead.';
+        ? 'No trip in progress. Start a ride from an upcoming booking.'
+        : 'No queued trips. Pending and assigned rides appear here before you start.';
   const emptyIcon =
     active === 'past'
       ? 'archive-outline'

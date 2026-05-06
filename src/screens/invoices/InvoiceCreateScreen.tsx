@@ -4,7 +4,7 @@ import DateTimePicker, {
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -14,48 +14,52 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { PrimaryButton, Screen, TextField } from '../../components';
+import { Screen } from '../../components';
 import { useAuth } from '../../context/AuthContext';
 import { formatInvoiceMoney } from '../../lib/invoiceFormat';
 import { downloadInvoicePdf } from '../../lib/invoicePdfDownload';
 import { logger } from '../../lib/logger';
+import { HeaderSignOutButton } from '../../navigation/driverChrome';
 import type { InvoicesStackParamList } from '../../navigation/types';
 import { invoicesApi } from '../../services/invoices/invoicesApi';
 import type { InvoiceAddressKind, InvoiceCreatePrefill } from '../../types/invoice';
 import { colors, spacing, typography } from '../../theme';
 
 const TAX_RATE = 0.1;
+/** Matches other driver chrome (home / bookings / reservations). */
+const brandBlue = '#1E88E5';
 
-function KindToggle({
-  label,
+function LocationAirportBar({
+  title,
   value,
   onChange,
 }: {
-  label: string;
+  title: string;
   value: InvoiceAddressKind;
   onChange: (v: InvoiceAddressKind) => void;
 }) {
   return (
-    <View style={styles.kindBlock}>
-      <Text style={styles.kindLabel}>{label}</Text>
-      <View style={styles.kindRow}>
+    <View style={styles.locBar}>
+      <Text style={styles.locBarTitle}>{title}</Text>
+      <View style={styles.segmentGroup}>
         <Pressable
           accessibilityRole="button"
           onPress={() => onChange('LOCATION')}
-          style={[styles.chip, value === 'LOCATION' && styles.chipOn]}
+          style={[styles.segment, value === 'LOCATION' && styles.segmentSelected]}
         >
-          <Text style={[styles.chipText, value === 'LOCATION' && styles.chipTextOn]}>Location</Text>
+          <Text style={[styles.segmentText, value === 'LOCATION' && styles.segmentTextSelected]}>Location</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
           onPress={() => onChange('AIRPORT')}
-          style={[styles.chip, value === 'AIRPORT' && styles.chipOn]}
+          style={[styles.segment, value === 'AIRPORT' && styles.segmentSelected]}
         >
-          <Text style={[styles.chipText, value === 'AIRPORT' && styles.chipTextOn]}>Airport</Text>
+          <Text style={[styles.segmentText, value === 'AIRPORT' && styles.segmentTextSelected]}>Airport</Text>
         </Pressable>
       </View>
     </View>
@@ -112,7 +116,6 @@ function parsePickupDate(dateYmd: string): string | null {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0, 0).toISOString();
 }
 
-/** Split e.g. "BA 117" or "LH441" into airline + flight number for airport pick-up. */
 function splitFlightPasted(val: string): { airline: string; flightNo: string } {
   const v = val.trim();
   const m = /^([A-Za-z]{2,3})[\s-]*(\d{1,4}[A-Za-z]?)$/.exec(v);
@@ -133,9 +136,6 @@ type ParsedBookingPaste = {
   childSeatsSummary?: string;
 };
 
-/**
- * Parses multi-line text from Booking detail “Copy all details” (label: value per line).
- */
 function parsePastedBookingDetailsBlock(raw: string): ParsedBookingPaste | null {
   const t = raw.trimEnd();
   if (!/\r?\n/.test(t)) {
@@ -193,8 +193,10 @@ function parsePastedBookingDetailsBlock(raw: string): ParsedBookingPaste | null 
   return null;
 }
 
+type InvoiceCreateNav = NativeStackNavigationProp<InvoicesStackParamList, 'InvoiceCreate'>;
+
 export function InvoiceCreateScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<InvoicesStackParamList>>();
+  const navigation = useNavigation<InvoiceCreateNav>();
   const route = useRoute<RouteProp<InvoicesStackParamList, 'InvoiceCreate'>>();
   const { accessToken } = useAuth();
 
@@ -251,13 +253,11 @@ export function InvoiceCreateScreen() {
     }, [route.params, applyPrefill, navigation]),
   );
 
-  const priceNum = useMemo(() => {
-    const n = Number.parseFloat(priceText.replace(/,/g, ''));
-    return Number.isFinite(n) && n >= 0 ? n : 0;
-  }, [priceText]);
-
-  const taxAmount = priceNum * TAX_RATE;
-  const totalAmount = priceNum + taxAmount;
+  const priceNum = Number.parseFloat(priceText.replace(/,/g, ''));
+  const priceValid = Number.isFinite(priceNum) && priceNum >= 0;
+  const subtotal = priceValid ? priceNum : 0;
+  const taxAmount = subtotal * TAX_RATE;
+  const totalAmount = subtotal + taxAmount;
 
   const handleBookingReferenceChange = useCallback((text: string) => {
     const parsed = parsePastedBookingDetailsBlock(text);
@@ -290,27 +290,35 @@ export function InvoiceCreateScreen() {
     setBookingReference(text);
   }, []);
 
-  const applyBookingPrice = async () => {
+  const tryLoadSuggestedPrice = useCallback(async () => {
     if (!accessToken) {
       return;
     }
     const ref = bookingReference.trim();
     if (!ref) {
-      setFormError('Enter the booking reference first, then load price.');
       return;
     }
-    setFormError(null);
     setLoadingPrice(true);
     try {
       const { price } = await invoicesApi.suggestedPrice(accessToken, ref);
       setPriceText(String(price));
-    } catch (e) {
-      logger.warn('InvoiceCreate: suggested price failed', e);
-      setFormError(e instanceof Error ? e.message : 'Could not load price.');
+      setFormError(null);
+    } catch {
+      /* optional: booking may not be linked */
     } finally {
       setLoadingPrice(false);
     }
-  };
+  }, [accessToken, bookingReference]);
+
+  const openDatePicker = useCallback(() => {
+    const base = ymdToLocalDate(pickupDateYmd) ?? new Date();
+    setIosDateDraft(base);
+    if (Platform.OS === 'android') {
+      setShowAndroidDatePicker(true);
+    } else if (Platform.OS === 'ios') {
+      setShowIosDatePicker(true);
+    }
+  }, [pickupDateYmd]);
 
   const submit = async () => {
     setFormError(null);
@@ -343,7 +351,7 @@ export function InvoiceCreateScreen() {
       setFormError('Enter flight number for drop-off Airport (airline is optional).');
       return;
     }
-    if (!Number.isFinite(priceNum) || priceNum <= 0) {
+    if (!priceValid || subtotal <= 0) {
       setFormError('Enter a valid price greater than zero.');
       return;
     }
@@ -364,23 +372,21 @@ export function InvoiceCreateScreen() {
         dropoffAddress: dropoffKind === 'LOCATION' ? dropoffAddress.trim() : undefined,
         dropoffAirline: dropoffKind === 'AIRPORT' ? dropoffAirline.trim() : undefined,
         dropoffFlightNo: dropoffKind === 'AIRPORT' ? dropoffFlightNo.trim() : undefined,
-        priceAmount: priceNum,
+        priceAmount: subtotal,
         ...(cs ? { childSeatsSummary: cs } : {}),
       };
       const created = await invoicesApi.create(accessToken, body);
+      let message = 'Your invoice was generated successfully.';
       try {
         const pdfMsg = await downloadInvoicePdf(accessToken, created.id);
         if (pdfMsg) {
-          Alert.alert('PDF saved', pdfMsg);
+          message = `${message}\n\n${pdfMsg}`;
         }
       } catch (e) {
         logger.warn('InvoiceCreate: PDF save failed', e);
-        Alert.alert(
-          'Invoice saved',
-          'The PDF could not be saved. Open the invoice and use Download PDF to try again.',
-        );
+        message = `${message}\n\nPDF could not be saved to this device. You can download it from the invoices list.`;
       }
-      navigation.replace('InvoiceDetail', { id: created.id });
+      Alert.alert('Success', message);
     } catch (e) {
       logger.warn('InvoiceCreate: submit failed', e);
       setFormError(e instanceof Error ? e.message : 'Could not create invoice.');
@@ -389,317 +395,405 @@ export function InvoiceCreateScreen() {
     }
   };
 
+  const fieldStyle = styles.textField;
+
   return (
-    <Screen>
+    <Screen style={styles.screenRoot}>
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <TextField
-          label="Booking reference"
-          value={bookingReference}
-          onChangeText={handleBookingReferenceChange}
-          placeholder="Type, paste, or paste full “Copy all details” from a booking"
-          multiline
-          textAlignVertical="top"
-          style={styles.bookingRefInput}
+        <TextInput
+          style={fieldStyle}
+          placeholder="Full Name"
+          placeholderTextColor="#B0BEC5"
+          value={fullName}
+          onChangeText={setFullName}
+          autoCapitalize="words"
         />
-        <Text style={styles.pasteHint}>
-          Paste the whole block from a booking’s Copy all details to fill name, phone, trip date,
-          flight, and child seats when present (pick-up switches to Airport when a flight line is
-          present).
-        </Text>
-        <Pressable
-          style={[styles.secondaryBtn, loadingPrice && styles.secondaryBtnDisabled]}
-          onPress={() => void applyBookingPrice()}
-          disabled={loadingPrice}
-        >
-          {loadingPrice ? (
-            <ActivityIndicator color={colors.accent} />
-          ) : (
-            <Text style={styles.secondaryBtnText}>Load price from assigned booking</Text>
-          )}
-        </Pressable>
-
-        <Text style={styles.hint}>
-          Tax is 10% on the subtotal. Total is calculated when you save.
-        </Text>
-
-        <TextField label="Full name" value={fullName} onChangeText={setFullName} autoCapitalize="words" />
-        <TextField
-          label="Phone number"
+        <TextInput
+          style={fieldStyle}
+          placeholder="Phone Number"
+          placeholderTextColor="#B0BEC5"
           value={phoneNumber}
           onChangeText={setPhoneNumber}
           keyboardType="phone-pad"
         />
-        <TextField
-          label="Child seats (optional)"
-          value={childSeatsSummary}
-          onChangeText={setChildSeatsSummary}
-          placeholder="From booking if needed; omit to copy from assigned booking"
-          multiline
-          textAlignVertical="top"
-        />
+        <View>
+          <TextInput
+            style={[fieldStyle, styles.bookingRefInput]}
+            placeholder="Booking Reference"
+            placeholderTextColor="#B0BEC5"
+            value={bookingReference}
+            onChangeText={handleBookingReferenceChange}
+            onEndEditing={() => void tryLoadSuggestedPrice()}
+            multiline
+            autoCapitalize="characters"
+          />
+          {loadingPrice ? (
+            <View style={styles.priceHintRow}>
+              <ActivityIndicator size="small" color={brandBlue} />
+              <Text style={styles.priceHint}>Checking booking price…</Text>
+            </View>
+          ) : null}
+        </View>
 
         {Platform.OS === 'web' ? (
-          <TextField
-            label="Pick-up date (YYYY-MM-DD)"
+          <TextInput
+            style={fieldStyle}
+            placeholder="PU date (YYYY-MM-DD)"
+            placeholderTextColor="#B0BEC5"
             value={pickupDateYmd}
             onChangeText={setPickupDateYmd}
-            placeholder="2026-05-15"
           />
         ) : (
-          <>
-            <View style={styles.dateFieldWrap}>
-              <Text style={styles.dateFieldLabel}>Pick-up date</Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Choose pick-up date"
-                onPress={() => {
-                  const base = ymdToLocalDate(pickupDateYmd) ?? new Date();
-                  setIosDateDraft(base);
-                  if (Platform.OS === 'android') {
-                    setShowAndroidDatePicker(true);
-                  } else if (Platform.OS === 'ios') {
-                    setShowIosDatePicker(true);
-                  }
-                }}
-                style={({ pressed }) => [styles.dateFieldRow, pressed && styles.dateFieldRowPressed]}
-              >
-                <Text style={pickupDateYmd ? styles.dateFieldValue : styles.dateFieldPlaceholder}>
-                  {pickupDateYmd ? formatPickupDisplay(pickupDateYmd) : 'Tap to choose date'}
-                </Text>
-                <Ionicons name="calendar-outline" size={22} color={colors.accent} />
-              </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Choose pick-up date"
+            onPress={openDatePicker}
+            style={styles.puDateBlock}
+          >
+            <View style={styles.puDateTop}>
+              <Text style={styles.puDateLabel}>PU DATE</Text>
+              <View style={styles.puDateUnderline} />
             </View>
-
-            {Platform.OS === 'android' && showAndroidDatePicker ? (
-              <DateTimePicker
-                value={ymdToLocalDate(pickupDateYmd) ?? new Date()}
-                mode="date"
-                display="calendar"
-                onChange={(event: DateTimePickerEvent, date?: Date) => {
-                  setShowAndroidDatePicker(false);
-                  if (event.type === 'set' && date) {
-                    setPickupDateYmd(toYmd(date));
-                  }
-                }}
-              />
-            ) : null}
-
-            {Platform.OS === 'ios' ? (
-              <Modal
-                visible={showIosDatePicker}
-                transparent
-                animationType="fade"
-                onRequestClose={() => setShowIosDatePicker(false)}
-              >
-                <View style={styles.dateModalOverlay}>
-                  <Pressable style={styles.dateModalBackdrop} onPress={() => setShowIosDatePicker(false)} />
-                  <View style={styles.dateModalSheet}>
-                    <View style={styles.dateModalHeader}>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="Cancel date selection"
-                        onPress={() => setShowIosDatePicker(false)}
-                        hitSlop={12}
-                      >
-                        <Text style={styles.dateModalHeaderBtn}>Cancel</Text>
-                      </Pressable>
-                      <Text style={styles.dateModalTitle}>Pick-up date</Text>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="Confirm date"
-                        onPress={() => {
-                          setPickupDateYmd(toYmd(iosDateDraft));
-                          setShowIosDatePicker(false);
-                        }}
-                        hitSlop={12}
-                      >
-                        <Text style={styles.dateModalHeaderBtnStrong}>Done</Text>
-                      </Pressable>
-                    </View>
-                    <DateTimePicker
-                      value={iosDateDraft}
-                      mode="date"
-                      display="inline"
-                      themeVariant="light"
-                      onChange={(_event: DateTimePickerEvent, date?: Date) => {
-                        if (date) {
-                          setIosDateDraft(date);
-                        }
-                      }}
-                      style={styles.iosInlinePicker}
-                    />
-                  </View>
-                </View>
-              </Modal>
-            ) : null}
-          </>
+            <View style={styles.puDateBottom}>
+              <Text style={pickupDateYmd ? styles.puDateValue : styles.puDatePlaceholder}>
+                {pickupDateYmd ? formatPickupDisplay(pickupDateYmd) : 'Tap to choose date'}
+              </Text>
+            </View>
+          </Pressable>
         )}
 
-        <KindToggle label="Pick-up" value={pickupKind} onChange={setPickupKind} />
+        {Platform.OS === 'android' && showAndroidDatePicker ? (
+          <DateTimePicker
+            value={ymdToLocalDate(pickupDateYmd) ?? new Date()}
+            mode="date"
+            display="calendar"
+            onChange={(event: DateTimePickerEvent, date?: Date) => {
+              setShowAndroidDatePicker(false);
+              if (event.type === 'set' && date) {
+                setPickupDateYmd(toYmd(date));
+              }
+            }}
+          />
+        ) : null}
+
+        {Platform.OS === 'ios' ? (
+          <Modal
+            visible={showIosDatePicker}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowIosDatePicker(false)}
+          >
+            <View style={styles.dateModalOverlay}>
+              <Pressable style={styles.dateModalBackdrop} onPress={() => setShowIosDatePicker(false)} />
+              <View style={styles.dateModalSheet}>
+                <View style={styles.dateModalHeader}>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setShowIosDatePicker(false)}
+                    hitSlop={12}
+                  >
+                    <Text style={styles.dateModalHeaderBtn}>Cancel</Text>
+                  </Pressable>
+                  <Text style={styles.dateModalTitle}>PU DATE</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      setPickupDateYmd(toYmd(iosDateDraft));
+                      setShowIosDatePicker(false);
+                    }}
+                    hitSlop={12}
+                  >
+                    <Text style={styles.dateModalHeaderBtnStrong}>Done</Text>
+                  </Pressable>
+                </View>
+                <DateTimePicker
+                  value={iosDateDraft}
+                  mode="date"
+                  display="inline"
+                  themeVariant="light"
+                  onChange={(_event: DateTimePickerEvent, date?: Date) => {
+                    if (date) {
+                      setIosDateDraft(date);
+                    }
+                  }}
+                  style={styles.iosInlinePicker}
+                />
+              </View>
+            </View>
+          </Modal>
+        ) : null}
+
+        <LocationAirportBar title="PICK UP" value={pickupKind} onChange={setPickupKind} />
         {pickupKind === 'LOCATION' ? (
-          <TextField
-            label="Pick-up address"
+          <TextInput
+            style={fieldStyle}
+            placeholder="Pick-up address"
+            placeholderTextColor="#B0BEC5"
             value={pickupAddress}
             onChangeText={setPickupAddress}
             multiline
           />
         ) : (
-          <>
-            <TextField label="Airline name (optional)" value={pickupAirline} onChangeText={setPickupAirline} />
-            <TextField label="Flight number" value={pickupFlightNo} onChangeText={setPickupFlightNo} />
-          </>
+          <View style={styles.airportFields}>
+            <TextInput
+              style={fieldStyle}
+              placeholder="Airline (optional)"
+              placeholderTextColor="#B0BEC5"
+              value={pickupAirline}
+              onChangeText={setPickupAirline}
+            />
+            <TextInput
+              style={fieldStyle}
+              placeholder="Flight number"
+              placeholderTextColor="#B0BEC5"
+              value={pickupFlightNo}
+              onChangeText={setPickupFlightNo}
+            />
+          </View>
         )}
 
-        <KindToggle label="Drop-off" value={dropoffKind} onChange={setDropoffKind} />
+        <LocationAirportBar title="DROP OFF" value={dropoffKind} onChange={setDropoffKind} />
         {dropoffKind === 'LOCATION' ? (
-          <TextField
-            label="Drop-off address"
+          <TextInput
+            style={fieldStyle}
+            placeholder="Drop-off address"
+            placeholderTextColor="#B0BEC5"
             value={dropoffAddress}
             onChangeText={setDropoffAddress}
             multiline
           />
         ) : (
-          <>
-            <TextField label="Airline name (optional)" value={dropoffAirline} onChangeText={setDropoffAirline} />
-            <TextField label="Flight number" value={dropoffFlightNo} onChangeText={setDropoffFlightNo} />
-          </>
+          <View style={styles.airportFields}>
+            <TextInput
+              style={fieldStyle}
+              placeholder="Airline (optional)"
+              placeholderTextColor="#B0BEC5"
+              value={dropoffAirline}
+              onChangeText={setDropoffAirline}
+            />
+            <TextInput
+              style={fieldStyle}
+              placeholder="Flight number"
+              placeholderTextColor="#B0BEC5"
+              value={dropoffFlightNo}
+              onChangeText={setDropoffFlightNo}
+            />
+          </View>
         )}
 
-        <Text style={styles.section}>Price</Text>
-        <TextField
-          label="Subtotal (GBP, editable)"
+        <TextInput
+          style={fieldStyle}
+          placeholder="Price"
+          placeholderTextColor="#B0BEC5"
           value={priceText}
           onChangeText={setPriceText}
           keyboardType="decimal-pad"
-          placeholder="0.00"
         />
-
-        <View style={styles.totalsCard}>
-          <Text style={styles.totalLine}>Tax (10%): {formatInvoiceMoney(taxAmount)}</Text>
-          <Text style={styles.totalStrong}>Total: {formatInvoiceMoney(totalAmount)}</Text>
+        <View style={[fieldStyle, styles.readonlyBox]}>
+          <Text style={subtotal > 0 ? styles.readonlyValue : styles.readonlyPlaceholder}>
+            {subtotal > 0 ? formatInvoiceMoney(taxAmount) : '10% Tax'}
+          </Text>
+        </View>
+        <View style={[fieldStyle, styles.readonlyBox]}>
+          <Text style={subtotal > 0 ? styles.readonlyValue : styles.readonlyPlaceholder}>
+            {subtotal > 0 ? formatInvoiceMoney(totalAmount) : 'Remaining'}
+          </Text>
         </View>
 
         {formError ? <Text style={styles.formError}>{formError}</Text> : null}
 
-        <PrimaryButton
-          label={submitting ? 'Saving…' : 'Generate invoice'}
-          onPress={() => void submit()}
+        <Pressable
+          style={[styles.doneButton, submitting && styles.doneDisabled]}
           disabled={submitting}
-        />
+          onPress={() => void submit()}
+        >
+          {submitting ? (
+            <ActivityIndicator color={brandBlue} />
+          ) : (
+            <Text style={styles.doneText}>DONE</Text>
+          )}
+        </Pressable>
       </ScrollView>
     </Screen>
   );
 }
 
+type InvoiceCreateHeaderNav = {
+  goBack(): void;
+};
+
+export function invoiceCreateScreenOptions({ navigation }: { navigation: InvoiceCreateHeaderNav }) {
+  return {
+    headerShown: true,
+    title: 'Generate Invoice',
+    headerStyle: { backgroundColor: brandBlue },
+    headerTintColor: '#FFFFFF',
+    headerTitleStyle: { color: '#FFFFFF', fontWeight: '600' as const, fontSize: 18 },
+    headerLeft: () => (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Go back"
+        hitSlop={12}
+        onPress={() => navigation.goBack()}
+        style={({ pressed }) => [styles.headerIconBtn, pressed && styles.headerPressed]}
+      >
+        <Ionicons name="chevron-back" size={28} color="#FFFFFF" />
+      </Pressable>
+    ),
+    headerRight: () => <HeaderSignOutButton />,
+  };
+}
+
 const styles = StyleSheet.create({
-  scroll: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  hint: {
-    ...typography.caption,
-    color: colors.primaryMuted,
-    marginBottom: spacing.md,
+  screenRoot: { flex: 1, backgroundColor: '#FFFFFF' },
+  scroll: { padding: spacing.md, paddingBottom: spacing.xxl },
+  textField: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#CFD8DC',
+    borderRadius: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: Platform.OS === 'ios' ? spacing.md : spacing.sm,
+    marginBottom: spacing.sm,
+    ...typography.body,
+    color: '#212121',
+    backgroundColor: '#FFFFFF',
   },
-  pasteHint: {
-    ...typography.caption,
-    color: colors.primaryMuted,
+  bookingRefInput: { minHeight: 44, maxHeight: 100, textAlignVertical: 'top' },
+  priceHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
     marginTop: -spacing.xs,
     marginBottom: spacing.sm,
   },
-  bookingRefInput: { minHeight: 56 },
-  section: {
-    ...typography.subtitle,
-    marginTop: spacing.md,
+  priceHint: { ...typography.caption, color: colors.primaryMuted },
+  puDateBlock: {
+    backgroundColor: brandBlue,
     marginBottom: spacing.sm,
+    borderRadius: 0,
+    overflow: 'hidden',
   },
-  kindBlock: { marginBottom: spacing.md },
-  kindLabel: {
-    ...typography.caption,
-    color: colors.primary,
-    fontWeight: '600',
-    marginBottom: spacing.xs,
-  },
-  kindRow: { flexDirection: 'row', gap: spacing.sm },
-  chip: {
-    paddingVertical: spacing.sm,
+  puDateTop: {
+    paddingTop: spacing.sm,
     paddingHorizontal: spacing.md,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  chipOn: {
-    borderColor: colors.accent,
-    backgroundColor: 'rgba(37, 99, 235, 0.12)',
-  },
-  chipText: { ...typography.body, color: colors.primaryMuted },
-  chipTextOn: { color: colors.accent, fontWeight: '700' },
-  secondaryBtn: {
+    paddingBottom: spacing.xs,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.sm,
-    marginBottom: spacing.md,
   },
-  secondaryBtnDisabled: { opacity: 0.6 },
-  secondaryBtnText: {
-    ...typography.body,
-    color: colors.accent,
+  puDateLabel: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 13,
+    letterSpacing: 1,
+  },
+  puDateUnderline: {
+    height: 2,
+    backgroundColor: '#FFFFFF',
+    alignSelf: 'stretch',
+    marginTop: spacing.xs,
+    marginHorizontal: spacing.lg,
+  },
+  puDateBottom: {
+    backgroundColor: brandBlue,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    alignItems: 'center',
+  },
+  puDateValue: {
+    color: '#FFFFFF',
+    fontSize: 16,
     fontWeight: '700',
+    textAlign: 'center',
   },
-  totalsCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: spacing.md,
+  puDatePlaceholder: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  locBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: brandBlue,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.xs,
+    marginBottom: 0,
+  },
+  locBarTitle: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 15,
+    letterSpacing: 0.5,
+  },
+  segmentGroup: { flexDirection: 'row', gap: spacing.xs },
+  segment: {
     borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: spacing.md,
+    borderColor: '#FFFFFF',
+    paddingVertical: 6,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 4,
+    minWidth: 84,
+    alignItems: 'center',
   },
-  totalLine: { ...typography.body, color: colors.primaryMuted, marginBottom: spacing.xs },
-  totalStrong: { ...typography.subtitle, color: colors.primary },
+  segmentSelected: { backgroundColor: '#FFFFFF' },
+  segmentText: { color: '#FFFFFF', fontWeight: '600', fontSize: 13 },
+  segmentTextSelected: { color: brandBlue },
+  airportFields: { marginBottom: spacing.xs },
+  readonlyBox: {
+    justifyContent: 'center',
+    backgroundColor: '#FAFAFA',
+  },
+  readonlyValue: {
+    ...typography.body,
+    color: '#78909C',
+    fontWeight: '600',
+  },
+  readonlyPlaceholder: {
+    ...typography.body,
+    color: '#B0BEC5',
+  },
   formError: {
     ...typography.caption,
     color: colors.danger,
     marginBottom: spacing.md,
   },
-  dateFieldWrap: { marginBottom: spacing.md },
-  dateFieldLabel: {
-    ...typography.caption,
-    color: colors.primary,
-    marginBottom: spacing.xs,
-    fontWeight: '600',
-  },
-  dateFieldRow: {
-    flexDirection: 'row',
+  doneButton: {
+    marginTop: spacing.lg,
+    borderWidth: 2,
+    borderColor: brandBlue,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: spacing.md + 4,
+    borderRadius: 6,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    backgroundColor: colors.surface,
   },
-  dateFieldRowPressed: { opacity: 0.92 },
-  dateFieldValue: { ...typography.body, color: colors.primary, flex: 1 },
-  dateFieldPlaceholder: { ...typography.body, color: colors.primaryMuted, flex: 1 },
-  dateModalOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
+  doneDisabled: { opacity: 0.7 },
+  doneText: {
+    color: brandBlue,
+    fontWeight: '800',
+    fontSize: 16,
+    letterSpacing: 0.8,
   },
+  headerIconBtn: {
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerPressed: { opacity: 0.85 },
+  dateModalOverlay: { flex: 1, justifyContent: 'flex-end' },
   dateModalBackdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
   dateModalSheet: {
-    backgroundColor: colors.surface,
+    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     paddingBottom: spacing.lg,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
   },
   dateModalHeader: {
     flexDirection: 'row',
@@ -715,14 +809,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.primary,
   },
-  dateModalHeaderBtn: {
-    ...typography.body,
-    color: colors.primaryMuted,
-    minWidth: 64,
-  },
+  dateModalHeaderBtn: { ...typography.body, color: colors.primaryMuted, minWidth: 64 },
   dateModalHeaderBtnStrong: {
     ...typography.body,
-    color: colors.accent,
+    color: brandBlue,
     fontWeight: '700',
     textAlign: 'right',
     minWidth: 64,

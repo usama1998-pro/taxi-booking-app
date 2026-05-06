@@ -1,10 +1,13 @@
-import { DrawerToggleButton } from '@react-navigation/drawer';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-import { InvoiceCreateScreen } from '../screens/invoices/InvoiceCreateScreen';
+import {
+  InvoiceCreateScreen,
+  invoiceCreateScreenOptions,
+} from '../screens/invoices/InvoiceCreateScreen';
 import { InvoiceDetailScreen } from '../screens/invoices/InvoiceDetailScreen';
 import { InvoicesListScreen } from '../screens/invoices/InvoicesListScreen';
 import { driverNativeStackScreenOptions } from './driverHeaderOptions';
+import { HomeMenuHeaderButton } from './HomeMenuHeaderButton';
 import type { InvoicesStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<InvoicesStackParamList>();
@@ -17,13 +20,13 @@ export function InvoicesStackNavigator() {
         component={InvoicesListScreen}
         options={{
           title: 'Invoices',
-          headerLeft: (props) => <DrawerToggleButton tintColor={props.tintColor} />,
+          headerLeft: () => <HomeMenuHeaderButton />,
         }}
       />
       <Stack.Screen
         name="InvoiceCreate"
         component={InvoiceCreateScreen}
-        options={{ title: 'New invoice' }}
+        options={({ navigation }) => invoiceCreateScreenOptions({ navigation })}
       />
       <Stack.Screen
         name="InvoiceDetail"

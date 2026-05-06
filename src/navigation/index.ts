@@ -1,13 +1,13 @@
 export { AuthStackNavigator } from './AuthStackNavigator';
 export { BookingsStackNavigator } from './BookingsStackNavigator';
-export { DriverDrawerNavigator } from './DriverDrawerNavigator';
+export { DriverRootNavigator } from './DriverRootNavigator';
 export { HomeStackNavigator } from './HomeStackNavigator';
 export { InvoicesStackNavigator } from './InvoicesStackNavigator';
 export { RootNavigator } from './RootNavigator';
 export type {
   AuthStackParamList,
   BookingsStackParamList,
-  DriverDrawerParamList,
+  DriverRootParamList,
   HomeStackParamList,
   InvoicesStackParamList,
 } from './types';

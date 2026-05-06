@@ -1,12 +1,14 @@
 import * as Clipboard from 'expo-clipboard';
-import type { DrawerNavigationProp } from '@react-navigation/drawer';
+import { Ionicons } from '@expo/vector-icons';
 import type { RouteProp } from '@react-navigation/native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -15,31 +17,24 @@ import {
   ToastAndroid,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { PrimaryButton, Screen } from '../../components';
+import { Screen } from '../../components';
 import { useAuth } from '../../context/AuthContext';
-import {
-  bookingChildSeatsSummary,
-  bookingDropoffLabel,
-  bookingPassengerLabel,
-  bookingPickupLabel,
-  formatMoney,
-} from '../../lib/bookingFormat';
-import { bookingToInvoicePrefill } from '../../lib/bookingInvoicePrefill';
+import { bookingFromDisplay, bookingPassengerLabel, bookingToDisplay } from '../../lib/bookingFormat';
 import { logger } from '../../lib/logger';
-import type {
-  BookingDetailHostStackParamList,
-  DriverDrawerParamList,
-} from '../../navigation/types';
+import type { BookingDetailHostStackParamList } from '../../navigation/types';
 import { bookingsApi } from '../../services/bookings/bookingsApi';
 import type { Booking } from '../../types/booking';
 import { colors, spacing, typography } from '../../theme';
-import { formatDateShort } from '../../utils/formatDate';
 
 type BookingDetailParams = { BookingDetail: { uuid: string } };
 
 const COPY_TICK_MS = 1600;
+const HEADER_BLUE = '#2196F3';
+const ICON_BLACK = '#111827';
+const FOOTER_MUTED = '#9CA3AF';
+const SITE_URL = 'https://www.taxibarcelonas.com';
 
 function notifyCopiedAndroid() {
   if (Platform.OS === 'android') {
@@ -55,50 +50,68 @@ async function copyStringToClipboard(value: string): Promise<boolean> {
   }
 }
 
-/** All fields that have individual copy actions on this screen. */
-function scheduledLocalYmd(iso: string): string | null {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) {
-    return null;
+function formatPickupDate(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).format(new Date(iso));
+  } catch {
+    return iso;
   }
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
 }
 
-function buildCopyableSummary(b: Booking): string {
-  const lines: string[] = [];
-  const tripYmd = scheduledLocalYmd(b.scheduledTime);
-  if (tripYmd) {
-    lines.push(`Trip date: ${tripYmd}`);
+function formatPickupTime(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(new Date(iso));
+  } catch {
+    return '';
   }
-  if (b.customerName?.trim()) {
-    lines.push(`Name: ${b.customerName.trim()}`);
+}
+
+function formatResNumber(b: Booking): string {
+  const ref = b.bookingReference?.trim();
+  if (ref) {
+    const digits = ref.replace(/\D/g, '');
+    if (digits.length > 0) {
+      return digits;
+    }
+    return ref;
   }
-  if (b.customerEmail?.trim()) {
-    lines.push(`Email: ${b.customerEmail.trim()}`);
+  const hex = b.uuid.replace(/-/g, '');
+  const slice = hex.slice(-12);
+  const n = Number.parseInt(slice, 16);
+  if (!Number.isFinite(n)) {
+    return b.uuid.slice(0, 8).toUpperCase();
   }
-  if (b.customerPhone?.trim()) {
-    lines.push(`Phone: ${b.customerPhone.trim()}`);
-  }
-  if (b.flightNumber?.trim()) {
-    lines.push(`Flight: ${b.flightNumber.trim()}`);
-  }
-  if (b.bookingReference?.trim()) {
-    lines.push(`Booking reference: ${b.bookingReference.trim()}`);
-  }
-  const seats = bookingChildSeatsSummary(b);
-  if (seats) {
-    lines.push(`Child seats: ${seats}`);
-  }
-  return lines.join('\n');
+  return String(n % 100000).padStart(5, '0');
+}
+
+function formatFooterTimestamp(d: Date): string {
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const y = d.getFullYear();
+  const h = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${day}-${month}-${y} ${h}:${min}`;
+}
+
+function smsUrl(phone: string): string {
+  const core = phone.replace(/[^\d+]/g, '');
+  return `sms:${core}`;
 }
 
 export function BookingDetailScreen() {
   const route = useRoute<RouteProp<BookingDetailParams, 'BookingDetail'>>();
   const navigation =
     useNavigation<NativeStackNavigationProp<BookingDetailHostStackParamList, 'BookingDetail'>>();
+  const insets = useSafeAreaInsets();
   const { uuid } = route.params;
   const { accessToken } = useAuth();
   const [booking, setBooking] = useState<Booking | null>(null);
@@ -106,6 +119,7 @@ export function BookingDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [viewedAtLabel] = useState(() => formatFooterTimestamp(new Date()));
 
   const load = useCallback(async () => {
     if (!accessToken) {
@@ -186,10 +200,27 @@ export function BookingDetailScreen() {
     void load();
   }, [load]);
 
+  const qrPayload = useMemo(() => {
+    if (!booking) {
+      return SITE_URL;
+    }
+    const ref = booking.bookingReference?.trim();
+    if (ref) {
+      return `${SITE_URL}/?ref=${encodeURIComponent(ref)}`;
+    }
+    return SITE_URL;
+  }, [booking]);
+
+  const qrUri = useMemo(
+    () =>
+      `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(qrPayload)}`,
+    [qrPayload],
+  );
+
   if (loading) {
     return (
       <Screen style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.accent} />
+        <ActivityIndicator size="large" color={HEADER_BLUE} />
       </Screen>
     );
   }
@@ -203,199 +234,161 @@ export function BookingDetailScreen() {
   }
 
   const b = booking;
-  const childSeatsLine = bookingChildSeatsSummary(b);
-
   const customerNameForSign =
+    b.customerName?.trim() || b.user?.fullName?.trim() || bookingPassengerLabel(b);
+  const displayCustomerName =
     b.customerName?.trim() || b.user?.fullName?.trim() || bookingPassengerLabel(b);
 
   const openPickupSign = () => {
     navigation.navigate('PickupSign', { customerName: customerNameForSign });
   };
 
-  const goToNewInvoice = () => {
-    const prefill = bookingToInvoicePrefill(b);
-    const drawerNav = navigation.getParent<DrawerNavigationProp<DriverDrawerParamList>>();
-    drawerNav?.navigate('Invoices', {
-      screen: 'InvoiceCreate',
-      params: { prefill },
-    });
+  const openTel = () => {
+    const p = b.customerPhone?.trim();
+    if (!p) {
+      return;
+    }
+    const href = `tel:${p.replace(/[^\d+]/g, '')}`;
+    void Linking.openURL(href);
   };
 
-  const terminalStatuses = new Set(['completed', 'cancelled', 'canceled']);
-  const statusNorm = (b.status ?? '').trim().toLowerCase();
-  const isTerminal = terminalStatuses.has(statusNorm);
-  const canStartRide = statusNorm.length > 0 && !isTerminal && statusNorm !== 'in_progress';
-  const canMarkComplete = statusNorm === 'in_progress';
+  const openSms = () => {
+    const p = b.customerPhone?.trim();
+    if (!p) {
+      return;
+    }
+    void Linking.openURL(smsUrl(p));
+  };
 
   return (
-    <Screen>
-      <ScrollView contentContainerStyle={styles.pad} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>{bookingPassengerLabel(b)}</Text>
-        <Text style={styles.sub}>{formatDateShort(b.scheduledTime)}</Text>
+    <View style={styles.root}>
+      <View style={[styles.appHeader, { paddingTop: insets.top }]}>
+        <Text style={styles.headerRes} numberOfLines={1}>
+          RES# {formatResNumber(b)}
+        </Text>
+        <Text style={styles.headerBrand} numberOfLines={1}>
+          TAXIBARCELONAS
+        </Text>
+        <Pressable
+          onPress={() => navigation.goBack()}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+          style={styles.headerCloseBtn}
+        >
+          <Ionicons name="close" size={26} color="#FFFFFF" />
+        </Pressable>
+      </View>
+      <View style={styles.headerHairline} />
 
-        <View style={styles.invoiceFromBooking}>
-          <PrimaryButton
-            label="New invoice from this booking"
-            onPress={goToNewInvoice}
-            style={styles.invoicePrimaryBtn}
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + spacing.lg }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <Section title="Pickup Information">
+          <InfoRow label="Pickup Address" value={bookingFromDisplay(b)} />
+          <InfoRow label="Passengers" value={String(b.passengerCount)} />
+          <InfoRow label="Pickup Date" value={formatPickupDate(b.scheduledTime)} />
+          <InfoRow label="Pickup Time" value={formatPickupTime(b.scheduledTime)} />
+        </Section>
+
+        <Section title="Dropoff Information">
+          <InfoRow label="Dropoff Address" value={bookingToDisplay(b)} />
+        </Section>
+
+        <Section title="Customer Information">
+          <CustomerNameRow
+            name={displayCustomerName}
+            onEyePress={openPickupSign}
+            onCopyName={async () => {
+              const ok = await copyStringToClipboard(displayCustomerName);
+              if (ok) {
+                notifyCopiedAndroid();
+              } else {
+                Alert.alert('Copy failed', 'Could not copy to the clipboard.');
+              }
+            }}
           />
-        </View>
-
-        <View style={styles.copyAllTop}>
-          <CopyAllDetailsButton booking={b} />
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Trip</Text>
-          <Row label="Status" value={b.status} />
-          <Row label="Price" value={formatMoney(b.price)} />
-          <Row label="Passengers" value={String(b.passengerCount)} />
-          <Row label="Luggage" value={String(b.luggageCount)} />
-          {childSeatsLine ? <Row label="Child seats" value={childSeatsLine} /> : null}
-          {b.flightNumber ? <Row label="Flight" value={b.flightNumber} copyable /> : null}
-          {b.returnTime ? (
-            <Row label="Return" value={formatDateShort(b.returnTime)} />
+          {b.customerPhone?.trim() ? (
+            <PhoneRow
+              phone={b.customerPhone.trim()}
+              onCall={openTel}
+              onMessage={openSms}
+              onCopy={async () => {
+                const ok = await copyStringToClipboard(b.customerPhone!.trim());
+                if (ok) {
+                  notifyCopiedAndroid();
+                } else {
+                  Alert.alert('Copy failed', 'Could not copy to the clipboard.');
+                }
+              }}
+            />
           ) : null}
-        </View>
+          <BookingRefRow
+            reference={b.bookingReference?.trim() || '—'}
+            onCopy={async () => {
+              const ref = b.bookingReference?.trim();
+              if (!ref) {
+                return;
+              }
+              const ok = await copyStringToClipboard(ref);
+              if (ok) {
+                notifyCopiedAndroid();
+              } else {
+                Alert.alert('Copy failed', 'Could not copy to the clipboard.');
+              }
+            }}
+          />
+        </Section>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Pickup</Text>
-          <Text style={styles.block}>{bookingPickupLabel(b)}</Text>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Drop-off</Text>
-          <Text style={styles.block}>{bookingDropoffLabel(b)}</Text>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Customer</Text>
-          {b.customerName?.trim() || b.user?.fullName?.trim() ? (
-            <Row
-              label="Name"
-              value={b.customerName?.trim() || b.user?.fullName?.trim() || '—'}
-              copyable
-              pickupSignPress={openPickupSign}
-            />
-          ) : (
-            <Row
-              label="Passenger"
-              value={bookingPassengerLabel(b)}
-              copyable
-              pickupSignPress={openPickupSign}
-            />
-          )}
-          {b.customerEmail ? <Row label="Email" value={b.customerEmail} copyable /> : null}
-          {b.customerPhone ? <Row label="Phone" value={b.customerPhone} copyable /> : null}
-        </View>
-
-        {b.note ? (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Note</Text>
-            <Text style={styles.block}>{b.note}</Text>
+        {b.note?.trim() ? (
+          <View style={styles.noteWrap}>
+            <Text style={styles.noteLabel}>Note</Text>
+            <Text style={styles.noteBody}>{b.note.trim()}</Text>
           </View>
         ) : null}
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Record</Text>
-          <Row label="Booking reference" value={b.bookingReference} copyable />
-          <Row label="Created" value={formatDateShort(b.createdAt)} />
-          {b.completedAt ? <Row label="Completed" value={formatDateShort(b.completedAt)} /> : null}
+        <View style={styles.footer}>
+          <Image source={{ uri: qrUri }} style={styles.qr} resizeMode="contain" />
+          <View style={styles.footerCenter}>
+            <Text style={styles.footerSite}>www.taxibarcelonas.com</Text>
+          </View>
+          <Text style={styles.footerTime}>{viewedAtLabel}</Text>
         </View>
-
-        {canStartRide ? (
-          <View style={styles.completeSection}>
-            <PrimaryButton
-              label="Start ride"
-              onPress={onStartRide}
-              loading={starting}
-              style={styles.completePrimaryBtn}
-            />
-            <Text style={styles.completeHint}>
-              Moves this booking to Current. When the trip ends, mark it complete to send it to Past.
-            </Text>
-          </View>
-        ) : null}
-        {canMarkComplete ? (
-          <View style={styles.completeSection}>
-            <PrimaryButton
-              label="Mark trip complete"
-              onPress={onMarkComplete}
-              loading={completing}
-              style={styles.completePrimaryBtn}
-            />
-            <Text style={styles.completeHint}>
-              Moves this ride to Past. The most recently completed trip appears first there.
-            </Text>
-          </View>
-        ) : null}
       </ScrollView>
-    </Screen>
+    </View>
   );
 }
 
-function CopyAllDetailsButton({ booking }: { booking: Booking }) {
-  const [showTick, setShowTick] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-      }
-    };
-  }, []);
-
-  const flashTick = () => {
-    setShowTick(true);
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-    }
-    timerRef.current = setTimeout(() => setShowTick(false), COPY_TICK_MS);
-  };
-
-  const onCopyAll = async () => {
-    const text = buildCopyableSummary(booking);
-    const ok = await copyStringToClipboard(text);
-    if (ok) {
-      flashTick();
-      notifyCopiedAndroid();
-    } else {
-      Alert.alert('Copy failed', 'Could not copy to the clipboard.');
-    }
-  };
-
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <Pressable
-      onPress={() => void onCopyAll()}
-      style={({ pressed }) => [styles.copyAllBtn, pressed && styles.copyAllBtnPressed]}
-      accessibilityRole="button"
-      accessibilityLabel="Copy all customer, flight, and booking reference"
-    >
-      <Text style={styles.copyAllLabel}>Copy all details</Text>
-      <Ionicons
-        name={showTick ? 'checkmark-circle' : 'copy-outline'}
-        size={22}
-        color={showTick ? colors.success : colors.accent}
-      />
-    </Pressable>
+    <View style={styles.section}>
+      <View style={styles.sectionBar}>
+        <Text style={styles.sectionBarText}>{title}</Text>
+      </View>
+      <View style={styles.sectionBody}>{children}</View>
+    </View>
   );
 }
 
-function Row({
-  label,
-  value,
-  copyable = false,
-  onValuePress,
-  pickupSignPress,
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.infoRow}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue}>{value}</Text>
+    </View>
+  );
+}
+
+function CustomerNameRow({
+  name,
+  onEyePress,
+  onCopyName,
 }: {
-  label: string;
-  value: string;
-  copyable?: boolean;
-  /** Tap the value (e.g. customer name) to open full-screen pickup sign. */
-  onValuePress?: () => void;
-  /** Show eye control to open pickup sign (e.g. next to customer name). */
-  pickupSignPress?: () => void;
+  name: string;
+  onEyePress: () => void;
+  onCopyName: () => void;
 }) {
   const [showTick, setShowTick] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -416,163 +409,318 @@ function Row({
     timerRef.current = setTimeout(() => setShowTick(false), COPY_TICK_MS);
   };
 
-  const onCopy = async () => {
-    const ok = await copyStringToClipboard(value);
-    if (ok) {
-      flashTick();
-      notifyCopiedAndroid();
-    } else {
-      Alert.alert('Copy failed', 'Could not copy to the clipboard.');
+  return (
+    <View style={styles.infoRow}>
+      <Text style={styles.infoLabel}>Customer Name</Text>
+      <View style={styles.valueWithIcons}>
+        <Text style={styles.infoValueFlex} numberOfLines={3}>
+          {name}
+        </Text>
+        <Pressable
+          onPress={onEyePress}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Show pickup sign with customer name"
+          style={styles.iconBtn}
+        >
+          <Ionicons name="eye-outline" size={22} color={ICON_BLACK} />
+        </Pressable>
+        <Pressable
+          onPress={async () => {
+            await onCopyName();
+            flashTick();
+          }}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Copy customer name"
+          style={styles.iconBtn}
+        >
+          <Ionicons
+            name={showTick ? 'checkmark-circle' : 'copy-outline'}
+            size={22}
+            color={showTick ? colors.success : ICON_BLACK}
+          />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function PhoneRow({
+  phone,
+  onCall,
+  onMessage,
+  onCopy,
+}: {
+  phone: string;
+  onCall: () => void;
+  onMessage: () => void;
+  onCopy: () => void;
+}) {
+  const [showTick, setShowTick] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
+
+  const flashTick = () => {
+    setShowTick(true);
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
     }
+    timerRef.current = setTimeout(() => setShowTick(false), COPY_TICK_MS);
   };
 
-  const valueText = (
-    <Text
-      style={[styles.rowValue, onValuePress && styles.rowValueTappable]}
-      selectable={copyable && !onValuePress}
-      onLongPress={copyable ? () => void onCopy() : undefined}
-    >
-      {value}
-    </Text>
+  return (
+    <View style={styles.infoRow}>
+      <Text style={styles.infoLabel}>Phone Number</Text>
+      <View style={styles.valueWithIcons}>
+        <Pressable
+          onPress={onCall}
+          accessibilityRole="button"
+          accessibilityLabel="Call customer"
+          style={styles.phoneCircle}
+        >
+          <Ionicons name="call" size={18} color="#FFFFFF" />
+        </Pressable>
+        <Text style={styles.infoValueFlex} selectable>
+          {phone}
+        </Text>
+        <Pressable
+          onPress={onMessage}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Message customer"
+          style={styles.iconBtn}
+        >
+          <Ionicons name="chatbubble-outline" size={22} color={ICON_BLACK} />
+        </Pressable>
+        <Pressable
+          onPress={async () => {
+            await onCopy();
+            flashTick();
+          }}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Copy phone number"
+          style={styles.iconBtn}
+        >
+          <Ionicons
+            name={showTick ? 'checkmark-circle' : 'copy-outline'}
+            size={22}
+            color={showTick ? colors.success : ICON_BLACK}
+          />
+        </Pressable>
+      </View>
+    </View>
   );
+}
+
+function BookingRefRow({ reference, onCopy }: { reference: string; onCopy: () => void }) {
+  const [showTick, setShowTick] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
+
+  const flashTick = () => {
+    setShowTick(true);
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
+    timerRef.current = setTimeout(() => setShowTick(false), COPY_TICK_MS);
+  };
 
   return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <View style={styles.rowValueWrap}>
-        <View style={styles.rowValueTextBlock}>
-          {onValuePress ? (
-            <Pressable
-              onPress={onValuePress}
-              style={({ pressed }) => [styles.valuePressable, pressed && styles.valuePressablePressed]}
-              accessibilityRole="button"
-              accessibilityLabel={`Show pickup sign for ${label}`}
-            >
-              {valueText}
-            </Pressable>
-          ) : (
-            valueText
-          )}
-        </View>
-        {pickupSignPress ? (
-          <Pressable
-            onPress={pickupSignPress}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel="Show pickup sign with customer name"
-            style={styles.copyBtn}
-          >
-            <Ionicons name="eye-outline" size={24} color={colors.accent} />
-          </Pressable>
-        ) : null}
-        {copyable ? (
-          <Pressable
-            onPress={() => void onCopy()}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel={`Copy ${label}`}
-            style={styles.copyBtn}
-          >
-            <Ionicons
-              name={showTick ? 'checkmark-circle' : 'copy-outline'}
-              size={22}
-              color={showTick ? colors.success : colors.accent}
-            />
-          </Pressable>
-        ) : null}
+    <View style={styles.infoRow}>
+      <Text style={styles.infoLabel}>Booking Ref</Text>
+      <View style={styles.valueWithIcons}>
+        <Text style={styles.infoValueFlex} selectable>
+          {reference}
+        </Text>
+        <Pressable
+          onPress={async () => {
+            await onCopy();
+            flashTick();
+          }}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Copy booking reference"
+          style={styles.iconBtn}
+        >
+          <Ionicons
+            name={showTick ? 'checkmark-circle' : 'copy-outline'}
+            size={22}
+            color={showTick ? colors.success : ICON_BLACK}
+          />
+        </Pressable>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  pad: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  title: { ...typography.title, marginBottom: spacing.xs },
-  sub: { ...typography.body, color: colors.primaryMuted, marginBottom: spacing.sm },
-  invoiceFromBooking: { marginBottom: spacing.md, alignSelf: 'stretch' },
-  invoicePrimaryBtn: { alignSelf: 'stretch' },
-  completeSection: { marginTop: spacing.lg, marginBottom: spacing.md, alignSelf: 'stretch' },
-  completePrimaryBtn: { alignSelf: 'stretch' },
-  completeHint: {
-    ...typography.caption,
-    color: colors.primaryMuted,
-    marginTop: spacing.sm,
-    lineHeight: 18,
-  },
-  copyAllTop: { marginBottom: spacing.lg },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  cardTitle: {
-    ...typography.subtitle,
-    marginBottom: spacing.sm,
-    color: colors.primary,
-  },
-  copyAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    marginBottom: 0,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.accent,
+  root: {
+    flex: 1,
     backgroundColor: colors.background,
   },
-  copyAllBtnPressed: { opacity: 0.88 },
-  copyAllLabel: {
-    ...typography.caption,
-    fontWeight: '700',
-    color: colors.accent,
-    flex: 1,
-  },
-  block: { ...typography.body, color: colors.primary },
-  row: {
+  pad: { padding: spacing.lg, paddingBottom: spacing.xxl },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  appHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: HEADER_BLUE,
+    paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.sm,
+    gap: spacing.xs,
+  },
+  headerRes: {
+    flexShrink: 0,
+    maxWidth: '32%',
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  headerBrand: {
+    flex: 1,
+    textAlign: 'center',
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 15,
+    letterSpacing: 0.5,
+  },
+  headerCloseBtn: {
+    flexShrink: 0,
+    padding: spacing.xs,
+  },
+  headerHairline: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#FFFFFF',
+  },
+  scrollContent: {
+    paddingTop: 0,
+  },
+  section: {
+    marginBottom: 0,
+  },
+  sectionBar: {
+    backgroundColor: HEADER_BLUE,
+    paddingVertical: 10,
+    paddingHorizontal: spacing.md,
+  },
+  sectionBarText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  sectionBody: {
+    backgroundColor: colors.background,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  infoRow: {
+    flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: spacing.md,
-    paddingVertical: spacing.xs,
+    paddingVertical: spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  rowLabel: {
-    ...typography.caption,
-    color: colors.primaryMuted,
-    flexShrink: 0,
-    paddingTop: 2,
+  infoLabel: {
+    width: '38%',
+    paddingRight: spacing.sm,
+    fontWeight: '700',
+    fontSize: 14,
+    color: ICON_BLACK,
   },
-  rowValueWrap: {
+  infoValue: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '400',
+    color: ICON_BLACK,
+  },
+  infoValueFlex: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '400',
+    color: ICON_BLACK,
+    minWidth: 0,
+  },
+  valueWithIcons: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'flex-end',
-    gap: spacing.sm,
+    alignItems: 'center',
+    gap: spacing.xs,
     minWidth: 0,
   },
-  rowValueTextBlock: {
-    flex: 1,
-    minWidth: 0,
-    alignItems: 'flex-end',
+  iconBtn: {
+    padding: spacing.xs,
   },
-  rowValue: {
+  phoneCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noteWrap: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  noteLabel: {
+    ...typography.caption,
+    fontWeight: '700',
+    color: colors.primaryMuted,
+    marginBottom: spacing.xs,
+  },
+  noteBody: {
     ...typography.body,
     color: colors.primary,
-    textAlign: 'right',
-    alignSelf: 'stretch',
-    width: '100%',
   },
-  rowValueTappable: { textDecorationLine: 'underline', textDecorationColor: colors.accent },
-  valuePressable: { alignSelf: 'stretch', width: '100%' },
-  valuePressablePressed: { opacity: 0.75 },
-  copyBtn: { padding: spacing.xs },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  qr: {
+    width: 88,
+    height: 88,
+    backgroundColor: colors.background,
+  },
+  footerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingBottom: 4,
+  },
+  footerSite: {
+    fontSize: 13,
+    color: FOOTER_MUTED,
+    textAlign: 'center',
+  },
+  footerTime: {
+    fontSize: 12,
+    color: FOOTER_MUTED,
+    flexShrink: 0,
+  },
   error: { ...typography.body, color: colors.danger },
 });

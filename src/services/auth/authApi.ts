@@ -110,22 +110,8 @@ async function jsonRequest<T>(
 }
 
 export const authApi = {
-  signIn(body: { email: string; password: string }): Promise<LoginResponse> {
-    return jsonRequest<LoginResponse>('/auth/signin', {
-      method: 'POST',
-      body,
-    });
-  },
-
-  signUp(body: {
-    name: string;
-    email: string;
-    phone: string;
-    password: string;
-    photoUrl?: string;
-    isAvailable?: boolean;
-  }): Promise<LoginResponse> {
-    return jsonRequest<LoginResponse>('/auth/signup', {
+  verifyCode(body: { code: string }): Promise<LoginResponse> {
+    return jsonRequest<LoginResponse>('/auth/verify-code', {
       method: 'POST',
       body,
     });

@@ -4,7 +4,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { colors } from '../theme';
 import { AuthStackNavigator } from './AuthStackNavigator';
-import { DriverDrawerNavigator } from './DriverDrawerNavigator';
+import { DriverRootNavigator } from './DriverRootNavigator';
 
 export function RootNavigator() {
   const { user, isHydrating } = useAuth();
@@ -16,7 +16,7 @@ export function RootNavigator() {
           <ActivityIndicator size="large" color={colors.accent} />
         </View>
       ) : user ? (
-        <DriverDrawerNavigator />
+        <DriverRootNavigator />
       ) : (
         <AuthStackNavigator />
       )}

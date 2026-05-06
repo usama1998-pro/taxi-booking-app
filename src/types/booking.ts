@@ -53,6 +53,11 @@ export type PaginatedBookings = {
   totalPages: number;
 };
 
+/** Response from `POST /bookings` (public create). */
+export type BookingCreateResponse = Booking & {
+  assignmentMessage: string;
+};
+
 /** Matches backend `GET /bookings?timeScope=` */
 export type BookingListTimeScope = 'past' | 'current' | 'upcoming';
 

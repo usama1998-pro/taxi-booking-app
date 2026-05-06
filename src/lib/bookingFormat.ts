@@ -33,6 +33,62 @@ export function bookingDropoffLabel(b: Booking): string {
   return formatLocationJson(b.dropoffLocation);
 }
 
+/** "From :" line — label plus street/address when stored on JSON. */
+export function bookingFromDisplay(b: Booking): string {
+  const loc = b.pickupLocation;
+  if (typeof loc === 'object' && loc !== null && !Array.isArray(loc)) {
+    const o = loc as Record<string, unknown>;
+    const label =
+      (typeof o.label === 'string' && o.label) ||
+      (typeof o.name === 'string' && o.name) ||
+      (typeof o.formattedAddress === 'string' && o.formattedAddress);
+    const extra =
+      (typeof o.meetingAddress === 'string' && o.meetingAddress.trim()) ||
+      (typeof o.address === 'string' && o.address.trim()) ||
+      (typeof o.street === 'string' && o.street.trim());
+    if (label && extra && !String(label).includes(extra)) {
+      return `${label}, ${extra}`;
+    }
+    if (label) {
+      return String(label);
+    }
+  }
+  return bookingPickupLabel(b);
+}
+
+/** "To :" line */
+export function bookingToDisplay(b: Booking): string {
+  return bookingDropoffLabel(b);
+}
+
+export type BookingFlightLine = { flight: string; airline?: string };
+
+export function bookingFlightLine(b: Booking): BookingFlightLine | null {
+  const loc = b.pickupLocation;
+  if (typeof loc === 'object' && loc !== null && !Array.isArray(loc)) {
+    const o = loc as Record<string, unknown>;
+    const airline = typeof o.airline === 'string' ? o.airline.trim() : '';
+    const flight = typeof o.flight === 'string' ? o.flight.trim() : '';
+    if (airline || flight) {
+      return { flight: flight || '—', airline: airline || undefined };
+    }
+  }
+  const fn = b.flightNumber?.trim();
+  if (fn) {
+    return { flight: fn };
+  }
+  return null;
+}
+
+/** App vs email booking heuristic for list icon. */
+export function bookingSourceIcon(b: Booking): 'phone-portrait-outline' | 'mail-outline' {
+  const email = (b.customerEmail || b.user?.email || '').toLowerCase();
+  if (email.includes('@taxibarcelonas.guest')) {
+    return 'phone-portrait-outline';
+  }
+  return 'mail-outline';
+}
+
 export function bookingPassengerLabel(b: Booking): string {
   return (
     b.customerName?.trim() ||

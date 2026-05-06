@@ -1,37 +1,53 @@
+import DateTimePicker, {
+  type DateTimePickerEvent,
+} from '@react-native-community/datetimepicker';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { useCallback, useRef, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
+  Alert,
+  Modal,
+  Platform,
   Pressable,
   RefreshControl,
+  SectionList,
   StyleSheet,
   Text,
+  TextInput,
+  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BookingListRow } from '../../components/bookings/BookingListRow';
+import { MyReservationsCard } from '../../components/bookings/MyReservationsCard';
 import { AnimatedEmptyList, Screen } from '../../components';
 import { useAuth } from '../../context/AuthContext';
 import { logger } from '../../lib/logger';
 import type { BookingsStackParamList } from '../../navigation/types';
 import { bookingsApi } from '../../services/bookings/bookingsApi';
+import {
+  loadBookingDriverLabels,
+  saveBookingDriverLabels,
+} from '../../services/preferences/driverListLabelStorage';
 import type { Booking, BookingListTimeScope } from '../../types/booking';
 import { colors, spacing, typography } from '../../theme';
 
 const PAGE_SIZE = 25;
 
-const SECTIONS: { key: BookingListTimeScope; label: string }[] = [
-  { key: 'past', label: 'Past' },
-  { key: 'current', label: 'Current' },
+const TABS: { key: BookingListTimeScope; label: string }[] = [
   { key: 'upcoming', label: 'Upcoming' },
+  { key: 'current', label: 'Current' },
+  { key: 'past', label: 'Past' },
 ];
+
+const brandBlue = '#1E88E5';
+
+const DEFAULT_DRIVER_LIST_LABEL = 'D.Name';
 
 type SectionState = {
   items: Booking[];
-  /** Highest page number merged into `items` (0 = nothing loaded yet). */
   page: number;
   totalPages: number;
   total: number;
@@ -54,11 +70,45 @@ function emptySection(): SectionState {
   };
 }
 
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+function localDayKeyFromIso(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function localDayKeyFromDate(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function formatSectionTitle(dayKey: string): string {
+  const [y, m, day] = dayKey.split('-').map((x) => parseInt(x, 10));
+  const d = new Date(y, m - 1, day);
+  return new Intl.DateTimeFormat('en-GB', {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(d);
+}
+
+function formatFilterDateLabel(d: Date): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(d);
+}
+
+type Section = { title: string; dayKey: string; data: Booking[] };
+
 export function BookingsListScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<BookingsStackParamList>>();
-  const { accessToken } = useAuth();
+  const { accessToken, user } = useAuth();
   const insets = useSafeAreaInsets();
-  const listRef = useRef<FlatList<Booking>>(null);
+  const listRef = useRef<SectionList<Booking, Section>>(null);
   const appendLockRef = useRef(false);
 
   const [active, setActive] = useState<BookingListTimeScope>('upcoming');
@@ -68,10 +118,71 @@ export function BookingsListScreen() {
     upcoming: emptySection(),
   });
   const [refreshing, setRefreshing] = useState(false);
+  const [refQuery, setRefQuery] = useState('');
+  const [filterDate, setFilterDate] = useState<Date | null>(null);
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+  const [bookingDriverLabels, setBookingDriverLabels] = useState<Record<string, string>>({});
+  const [editingBookingUuid, setEditingBookingUuid] = useState<string | null>(null);
+  const [driverLabelModalVisible, setDriverLabelModalVisible] = useState(false);
+  const [driverLabelDraft, setDriverLabelDraft] = useState('');
+
   const activeRef = useRef(active);
   activeRef.current = active;
   const byScopeRef = useRef(byScope);
   byScopeRef.current = byScope;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!user?.id) {
+        return;
+      }
+      const map = await loadBookingDriverLabels(user.id);
+      if (!cancelled) {
+        setBookingDriverLabels(map);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  const openDriverLabelEditor = useCallback(
+    (bookingUuid: string) => {
+      setEditingBookingUuid(bookingUuid);
+      const custom = bookingDriverLabels[bookingUuid]?.trim();
+      setDriverLabelDraft(
+        custom && custom.length > 0 ? custom : DEFAULT_DRIVER_LIST_LABEL,
+      );
+      setDriverLabelModalVisible(true);
+    },
+    [bookingDriverLabels],
+  );
+
+  const closeDriverLabelEditor = useCallback(() => {
+    setDriverLabelModalVisible(false);
+    setEditingBookingUuid(null);
+  }, []);
+
+  const saveDriverLabelDraft = useCallback(async () => {
+    if (!user?.id || !editingBookingUuid) {
+      setDriverLabelModalVisible(false);
+      setEditingBookingUuid(null);
+      return;
+    }
+    const uuid = editingBookingUuid;
+    const trimmed = driverLabelDraft.trim();
+    const next = { ...bookingDriverLabels };
+    if (trimmed.length === 0 || trimmed === DEFAULT_DRIVER_LIST_LABEL) {
+      delete next[uuid];
+    } else {
+      next[uuid] = trimmed;
+    }
+    await saveBookingDriverLabels(user.id, next);
+    setBookingDriverLabels(next);
+    setDriverLabelModalVisible(false);
+    setEditingBookingUuid(null);
+  }, [driverLabelDraft, user?.id, editingBookingUuid, bookingDriverLabels]);
 
   const refreshScope = useCallback(
     async (scope: BookingListTimeScope) => {
@@ -208,7 +319,7 @@ export function BookingsListScreen() {
   );
 
   const scrollListTop = useCallback(() => {
-    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    listRef.current?.scrollToLocation({ sectionIndex: 0, itemIndex: 0, animated: true });
   }, []);
 
   const selectTab = useCallback(
@@ -238,153 +349,506 @@ export function BookingsListScreen() {
   }, [loadNextPage]);
 
   const section = byScope[active];
+
+  const filtered = useMemo(() => {
+    let rows = section.items;
+    const q = refQuery.trim().toLowerCase();
+    if (q) {
+      rows = rows.filter((b) => b.bookingReference.toLowerCase().includes(q));
+    }
+    if (filterDate) {
+      const fk = localDayKeyFromDate(filterDate);
+      rows = rows.filter((b) => localDayKeyFromIso(b.scheduledTime) === fk);
+    }
+    return rows;
+  }, [section.items, refQuery, filterDate]);
+
+  const sections = useMemo((): Section[] => {
+    const groups = new Map<string, Booking[]>();
+    for (const b of filtered) {
+      const k = localDayKeyFromIso(b.scheduledTime);
+      if (!groups.has(k)) {
+        groups.set(k, []);
+      }
+      groups.get(k)!.push(b);
+    }
+    const keys = [...groups.keys()].sort((a, b) => {
+      if (a === b) {
+        return 0;
+      }
+      return active === 'past' ? (a < b ? 1 : -1) : a < b ? -1 : 1;
+    });
+    return keys.map((k) => ({
+      title: formatSectionTitle(k),
+      dayKey: k,
+      data: groups.get(k)!,
+    }));
+  }, [filtered, active]);
+
   const emptyCopy =
     active === 'past'
       ? 'No past trips yet.'
       : active === 'current'
-        ? 'No trip in progress. Start a ride from an upcoming booking.'
-        : 'No queued trips. Pending and assigned rides appear here before you start.';
+        ? 'Nothing scheduled for today.'
+        : 'No reservations from tomorrow onward.';
   const emptyIcon =
     active === 'past'
       ? 'archive-outline'
       : active === 'current'
-        ? 'car-sport-outline'
+        ? 'calendar-outline'
         : 'calendar-outline';
 
-  const listPad = [
-    styles.listPad,
-    { paddingBottom: spacing.lg + insets.bottom },
-  ];
+  const onDeleteBooking = useCallback(
+    (b: Booking) => {
+      Alert.alert(
+        'Delete booking',
+        `Remove booking ${b.bookingReference}?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              if (!accessToken) {
+                return;
+              }
+              void (async () => {
+                try {
+                  await bookingsApi.removeReservation(accessToken, b.uuid);
+                  await refreshScope(activeRef.current);
+                } catch (e) {
+                  Alert.alert(
+                    'Cannot delete',
+                    e instanceof Error ? e.message : 'This booking could not be removed.',
+                  );
+                }
+              })();
+            },
+          },
+        ],
+      );
+    },
+    [accessToken, refreshScope],
+  );
+
+  const onCompleteBooking = useCallback(
+    (b: Booking) => {
+      Alert.alert(
+        'Complete reservation',
+        `Mark booking ${b.bookingReference} as completed?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Complete',
+            style: 'default',
+            onPress: () => {
+              if (!accessToken) {
+                return;
+              }
+              void (async () => {
+                try {
+                  await bookingsApi.complete(accessToken, b.uuid);
+                  await refreshScope(activeRef.current);
+                } catch (e) {
+                  Alert.alert(
+                    'Cannot complete',
+                    e instanceof Error ? e.message : 'This booking could not be completed.',
+                  );
+                }
+              })();
+            },
+          },
+        ],
+      );
+    },
+    [accessToken, refreshScope],
+  );
+
+  const onDatePickerChange = useCallback((event: DateTimePickerEvent, selected?: Date) => {
+    if (Platform.OS === 'android') {
+      setDatePickerVisible(false);
+      if (event.type === 'dismissed') {
+        return;
+      }
+    }
+    if (selected) {
+      setFilterDate(selected);
+    }
+  }, []);
+
+  const listHeader = (
+    <View style={styles.headerBlock}>
+      <View style={styles.tabRow}>
+        {TABS.map((tab, i) => (
+          <Pressable
+            key={tab.key}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active === tab.key }}
+            onPress={() => selectTab(tab.key)}
+            style={[
+              styles.tabCell,
+              i < TABS.length - 1 && styles.tabDivider,
+              active === tab.key ? styles.tabCellActive : styles.tabCellIdle,
+            ]}
+          >
+            <Text style={[styles.tabLabel, active === tab.key && styles.tabLabelActive]}>{tab.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <View style={styles.searchRow}>
+        <Ionicons name="document-text-outline" size={20} color="#616161" style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search by Booking Ref"
+          placeholderTextColor="#9E9E9E"
+          value={refQuery}
+          onChangeText={setRefQuery}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        {refQuery.trim() ? (
+          <Pressable onPress={() => setRefQuery('')} hitSlop={8}>
+            <Text style={styles.clearText}>Clear</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      <View style={styles.searchRow}>
+        <Ionicons name="calendar-outline" size={20} color="#616161" style={styles.searchIcon} />
+        <Pressable style={styles.searchDateFlex} onPress={() => setDatePickerVisible(true)}>
+          <Text style={filterDate ? styles.searchDateValue : styles.searchDatePlaceholder}>
+            {filterDate ? formatFilterDateLabel(filterDate) : 'Search by date'}
+          </Text>
+        </Pressable>
+        {filterDate ? (
+          <Pressable
+            onPress={() => {
+              setFilterDate(null);
+              setDatePickerVisible(false);
+            }}
+            hitSlop={8}
+          >
+            <Text style={styles.clearText}>Clear</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
 
   const listFooter =
     section.loadingMore ? (
       <View style={styles.footerLoader}>
-        <ActivityIndicator color={colors.accent} />
+        <ActivityIndicator color={brandBlue} />
       </View>
     ) : section.loadMoreError ? (
       <Text style={styles.footerError}>{section.loadMoreError}</Text>
     ) : null;
 
-  if (section.loading && section.items.length === 0) {
-    return (
-      <Screen style={styles.flex}>
-        <View style={styles.tabs}>
-          {SECTIONS.map(({ key, label }) => (
-            <Pressable
-              key={key}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: active === key }}
-              onPress={() => selectTab(key)}
-              style={[styles.tab, active === key && styles.tabActive]}
-            >
-              <Text style={[styles.tabLabel, active === key && styles.tabLabelActive]}>{label}</Text>
-            </Pressable>
-          ))}
-        </View>
-        <View style={styles.listArea}>
-          <View style={styles.centered}>
-            <ActivityIndicator size="large" color={colors.accent} />
-          </View>
-        </View>
-      </Screen>
-    );
-  }
+  const listPad = [styles.listPadBottom, { paddingBottom: spacing.lg + insets.bottom }];
 
   return (
     <Screen style={styles.flex}>
-      <View style={styles.tabs}>
-        {SECTIONS.map(({ key, label }) => (
-          <Pressable
-            key={key}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: active === key }}
-            onPress={() => selectTab(key)}
-            style={[styles.tab, active === key && styles.tabActive]}
-          >
-            <Text style={[styles.tabLabel, active === key && styles.tabLabelActive]}>{label}</Text>
-          </Pressable>
-        ))}
-      </View>
-      <View style={styles.listArea}>
-        {section.error && section.items.length === 0 ? (
-          <View style={styles.pad}>
-            <Text style={styles.error}>{section.error}</Text>
-          </View>
-        ) : (
-          <FlatList
-            ref={listRef}
-            data={section.items}
-            keyExtractor={(item) => item.uuid}
-            extraData={active}
-            contentContainerStyle={listPad}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />
-            }
-            onEndReached={onEndReached}
-            onEndReachedThreshold={0.35}
-            ListFooterComponent={listFooter}
-            ListEmptyComponent={
+      {section.error && section.items.length === 0 && !section.loading ? (
+        <View style={styles.errorWrap}>
+          {listHeader}
+          <Text style={styles.errorText}>{section.error}</Text>
+        </View>
+      ) : (
+        <SectionList<Booking, Section>
+          ref={listRef}
+          sections={sections}
+          keyExtractor={(item) => item.uuid}
+          stickySectionHeadersEnabled
+          keyboardShouldPersistTaps="handled"
+          ListHeaderComponent={listHeader}
+          contentContainerStyle={listPad}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={brandBlue} />
+          }
+          onEndReached={onEndReached}
+          onEndReachedThreshold={0.35}
+          ListFooterComponent={listFooter}
+          ListEmptyComponent={
+            section.loading ? (
+              <View style={styles.emptyLoading}>
+                <ActivityIndicator size="large" color={brandBlue} />
+              </View>
+            ) : (
               <AnimatedEmptyList key={active} icon={emptyIcon} message={emptyCopy} />
-            }
-            renderItem={({ item }) => (
-              <BookingListRow
-                booking={item}
-                onPress={() => navigation.navigate('BookingDetail', { uuid: item.uuid })}
-                onPassengerNamePress={(customerName) =>
-                  navigation.navigate('PickupSign', { customerName })
-                }
-              />
-            )}
+            )
+          }
+          renderSectionHeader={({ section: sec }) => (
+            <View style={styles.dateHeader}>
+              <Text style={styles.dateHeaderText}>{sec.title}</Text>
+            </View>
+          )}
+          renderItem={({ item }) => (
+            <MyReservationsCard
+              booking={item}
+              driverListLabel={
+                bookingDriverLabels[item.uuid]?.trim() || DEFAULT_DRIVER_LIST_LABEL
+              }
+              onPressDriverListLabel={() => openDriverLabelEditor(item.uuid)}
+              onOpenDetail={() => navigation.navigate('BookingDetail', { uuid: item.uuid })}
+              onEdit={() => navigation.navigate('EditReservation', { uuid: item.uuid })}
+              onDelete={() => onDeleteBooking(item)}
+              onComplete={() => onCompleteBooking(item)}
+            />
+          )}
+        />
+      )}
+
+      <Modal
+        visible={driverLabelModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeDriverLabelEditor}
+      >
+        <TouchableWithoutFeedback onPress={closeDriverLabelEditor}>
+          <View style={styles.driverLabelOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.driverLabelSheet}>
+                <Text style={styles.driverLabelTitle}>Enter driver name</Text>
+                <Text style={styles.driverLabelHint}>
+                  Only this booking. Leave empty or save {DEFAULT_DRIVER_LIST_LABEL} to reset.
+                </Text>
+                <TextInput
+                  value={driverLabelDraft}
+                  onChangeText={setDriverLabelDraft}
+                  placeholder={DEFAULT_DRIVER_LIST_LABEL}
+                  placeholderTextColor="#9E9E9E"
+                  style={styles.driverLabelInput}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  maxLength={48}
+                />
+                <View style={styles.driverLabelActions}>
+                  <Pressable
+                    onPress={closeDriverLabelEditor}
+                    style={({ pressed }) => [
+                      styles.driverLabelBtnSecondary,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={styles.driverLabelBtnSecondaryText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => void saveDriverLabelDraft()}
+                    style={({ pressed }) => [styles.driverLabelBtnPrimary, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.driverLabelBtnPrimaryText}>Save</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {datePickerVisible && (
+        <>
+          <DateTimePicker
+            value={filterDate ?? new Date()}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={onDatePickerChange}
           />
-        )}
-      </View>
+          {Platform.OS === 'ios' ? (
+            <View style={styles.iosPickerBar}>
+              <Pressable onPress={() => setDatePickerVisible(false)}>
+                <Text style={styles.iosPickerDone}>Done</Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </>
+      )}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  listArea: { flex: 1, minHeight: 0 },
-  tabs: {
+  headerBlock: {
+    backgroundColor: '#FFFFFF',
+    paddingBottom: spacing.sm,
+  },
+  tabRow: {
     flexDirection: 'row',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-    paddingHorizontal: spacing.sm,
-    paddingTop: spacing.xs,
-    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: '#000000',
   },
-  tab: {
+  tabCell: {
     flex: 1,
-    paddingVertical: spacing.md,
+    paddingVertical: 12,
     alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    justifyContent: 'center',
   },
-  tabActive: {
-    borderBottomColor: colors.accent,
+  tabCellIdle: {
+    backgroundColor: '#EEEEEE',
+  },
+  tabCellActive: {
+    backgroundColor: '#000000',
+  },
+  tabDivider: {
+    borderRightWidth: 1,
+    borderRightColor: '#000000',
   },
   tabLabel: {
     ...typography.caption,
-    fontWeight: '600',
-    color: colors.primaryMuted,
+    fontWeight: '700',
+    color: '#000000',
+    fontSize: 13,
   },
   tabLabelActive: {
-    color: colors.accent,
+    color: '#FFFFFF',
   },
-  pad: { padding: spacing.lg },
-  listPad: { padding: spacing.lg, flexGrow: 1 },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#BDBDBD',
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 6,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: '#FFFFFF',
+  },
+  searchIcon: {
+    marginRight: spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    ...typography.body,
+    color: '#212121',
+    paddingVertical: 4,
+  },
+  searchDateFlex: {
+    flex: 1,
+    paddingVertical: 4,
+  },
+  searchDateValue: {
+    ...typography.body,
+    color: '#212121',
+  },
+  searchDatePlaceholder: {
+    ...typography.body,
+    color: '#9E9E9E',
+  },
+  clearText: {
+    color: brandBlue,
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  dateHeader: {
+    backgroundColor: '#757575',
+    paddingVertical: 8,
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.xs,
+  },
+  dateHeaderText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  listPadBottom: {
+    paddingHorizontal: spacing.md,
+    flexGrow: 1,
+  },
   footerLoader: {
     paddingVertical: spacing.lg,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   footerError: {
     ...typography.caption,
     color: colors.danger,
     textAlign: 'center',
     paddingVertical: spacing.md,
+  },
+  emptyLoading: {
+    paddingVertical: spacing.xxl,
+    alignItems: 'center',
+  },
+  errorWrap: { flex: 1 },
+  errorText: {
+    ...typography.body,
+    color: colors.danger,
+    padding: spacing.lg,
+  },
+  iosPickerBar: {
+    backgroundColor: '#F3F4F6',
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E5E7EB',
+  },
+  iosPickerDone: {
+    color: brandBlue,
+    fontWeight: '700',
+    fontSize: 17,
+  },
+  driverLabelOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'stretch',
     paddingHorizontal: spacing.lg,
   },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  error: { ...typography.body, color: colors.danger },
+  driverLabelSheet: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: spacing.lg,
+  },
+  driverLabelTitle: {
+    ...typography.subtitle,
+    fontWeight: '700',
+    color: '#212121',
+    marginBottom: spacing.xs,
+  },
+  driverLabelHint: {
+    ...typography.caption,
+    color: '#616161',
+    marginBottom: spacing.md,
+  },
+  driverLabelInput: {
+    ...typography.body,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#BDBDBD',
+    borderRadius: 8,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 8,
+    paddingHorizontal: spacing.sm,
+    color: '#212121',
+    marginBottom: spacing.lg,
+  },
+  driverLabelActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
+  },
+  driverLabelBtnSecondary: {
+    paddingVertical: 10,
+    paddingHorizontal: spacing.md,
+    borderRadius: 8,
+  },
+  driverLabelBtnSecondaryText: {
+    ...typography.body,
+    fontWeight: '600',
+    color: '#616161',
+  },
+  driverLabelBtnPrimary: {
+    paddingVertical: 10,
+    paddingHorizontal: spacing.md,
+    borderRadius: 8,
+    backgroundColor: brandBlue,
+  },
+  driverLabelBtnPrimaryText: {
+    ...typography.body,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  pressed: {
+    opacity: 0.88,
+  },
 });

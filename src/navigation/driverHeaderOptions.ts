@@ -15,7 +15,3 @@ export const driverNativeStackScreenOptions: NativeStackNavigationOptions = {
   } as NativeStackNavigationOptions['headerStyle'],
 };
 
-export const driverDrawerHeaderStyle = {
-  backgroundColor: colors.background,
-  paddingTop: HEADER_TOP_PADDING,
-};

@@ -1,15 +1,17 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { ReactNode, useEffect, useRef } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import {
   Animated,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   AUTH_HERO_CROSSFADE_MS,
@@ -27,11 +29,28 @@ type AuthScreenLayoutProps = {
  * centered form card on top.
  */
 export function AuthScreenLayout({ children }: AuthScreenLayoutProps) {
+  const insets = useSafeAreaInsets();
+  const [keyboardBottomInset, setKeyboardBottomInset] = useState(0);
   const slideCount = AUTH_HERO_SLIDES.length;
   const opacities = useRef(
     AUTH_HERO_SLIDES.map((_, i) => new Animated.Value(i === 0 ? 1 : 0)),
   ).current;
   const activeRef = useRef(0);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const onShow = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardBottomInset(e.endCoordinates.height);
+    });
+    const onHide = Keyboard.addListener(hideEvent, () => {
+      setKeyboardBottomInset(0);
+    });
+    return () => {
+      onShow.remove();
+      onHide.remove();
+    };
+  }, []);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -75,14 +94,33 @@ export function AuthScreenLayout({ children }: AuthScreenLayoutProps) {
       </View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
         keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
         style={styles.flex}
       >
         <ScrollView
-          contentContainerStyle={styles.scroll}
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.scroll,
+            keyboardBottomInset > 0 ? styles.scrollKeyboardOpen : null,
+            {
+              paddingTop: insets.top + spacing.md,
+              // iOS: extra scroll slack beyond KAV. Android: `softwareKeyboardLayoutMode: resize` shrinks the
+              // window — add only a small pad so the last field can scroll above the keyboard comfortably.
+              paddingBottom:
+                insets.bottom +
+                spacing.md +
+                (Platform.OS === 'ios'
+                  ? keyboardBottomInset + spacing.lg
+                  : keyboardBottomInset > 0
+                    ? spacing.xxl
+                    : 0),
+            },
+          ]}
           keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator
+          nestedScrollEnabled
         >
           <View style={styles.card}>{children}</View>
         </ScrollView>
@@ -95,12 +133,15 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#0f1f33' },
   heroImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
   flex: { flex: 1 },
+  scrollView: { flex: 1 },
   scroll: {
     flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xl,
+  },
+  scrollKeyboardOpen: {
+    justifyContent: 'flex-start',
   },
   card: {
     width: '100%',

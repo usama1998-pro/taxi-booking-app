@@ -8,14 +8,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import {
-  ActivityIndicator,
-  Modal,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-
+import { ActivityIndicator, Modal, StyleSheet, Text, View } from 'react-native';
 import { clearAppCaches } from '../lib/clearAppCaches';
 import { getAuthUiMessage } from '../lib/authErrors';
 import { logger } from '../lib/logger';
@@ -43,13 +36,7 @@ type AuthContextValue = {
   accessToken: string | null;
   isHydrating: boolean;
   isSigningOut: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (input: {
-    name: string;
-    email: string;
-    phone: string;
-    password: string;
-  }) => Promise<void>;
+  verifyCode: (code: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateAvailability: (isAvailable: boolean) => Promise<void>;
@@ -61,7 +48,7 @@ async function establishSession(accessToken: string): Promise<DriverUser> {
   const verified = await authApi.verify(accessToken);
   if (verified.typ !== 'driver') {
     logger.warn('Auth: session principal is not a driver', { typ: verified.typ });
-    throw new Error('This app is for drivers only. Sign in with a driver account.');
+    throw new Error('This app is for drivers only. Verify using a valid driver code.');
   }
   const profile = await authApi.fetchMyProfile(accessToken);
   logger.debug('Auth: session established', { driverId: profile.id });
@@ -116,53 +103,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    if (!email.trim() || !password) {
-      throw new Error('Please enter your email and password.');
+  const verifyCode = useCallback(async (code: string) => {
+    const normalized = code.replace(/\D/g, '');
+    if (normalized.length !== 4) {
+      throw new Error('Please enter the 4-digit verification code.');
     }
-    logger.debug('Auth: sign-in request');
+    logger.debug('Auth: verification request');
     try {
-      const { access_token } = await authApi.signIn({
-        email: email.trim().toLowerCase(),
-        password,
-      });
+      const { access_token } = await authApi.verifyCode({ code: normalized });
       const nextUser = await establishSession(access_token);
       await setStoredAccessToken(access_token);
       setAccessToken(access_token);
       setUser(nextUser);
-      logger.info('Auth: signed in', { driverId: nextUser.id });
+      logger.info('Auth: verification success', { driverId: nextUser.id });
     } catch (e) {
-      logger.error('Auth: sign-in error', e);
-      throw new Error(getAuthUiMessage(e, 'signIn'));
+      logger.error('Auth: verification error', e);
+      throw new Error(getAuthUiMessage(e, 'verification'));
     }
   }, []);
-
-  const signUp = useCallback(
-    async (input: { name: string; email: string; phone: string; password: string }) => {
-      const { name, email, phone, password } = input;
-      if (!name.trim() || !email.trim() || !phone.trim() || !password) {
-        throw new Error('Please fill in every field to continue.');
-      }
-      logger.debug('Auth: sign-up request');
-      try {
-        const { access_token } = await authApi.signUp({
-          name: name.trim(),
-          email: email.trim().toLowerCase(),
-          phone: phone.trim(),
-          password,
-        });
-        const nextUser = await establishSession(access_token);
-        await setStoredAccessToken(access_token);
-        setAccessToken(access_token);
-        setUser(nextUser);
-        logger.info('Auth: signed up and session ready', { driverId: nextUser.id });
-      } catch (e) {
-        logger.error('Auth: sign-up error', e);
-        throw new Error(getAuthUiMessage(e, 'signUp'));
-      }
-    },
-    [],
-  );
 
   const refreshProfile = useCallback(async () => {
     const token = accessToken ?? (await getStoredAccessToken());
@@ -194,7 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (isAvailable: boolean) => {
       const token = accessToken ?? (await getStoredAccessToken());
       if (!token) {
-        throw new Error('You are not signed in.');
+        throw new Error('You are not verified.');
       }
       await authApi.patchMyAvailability(token, isAvailable);
       setUser((prev) => (prev ? { ...prev, isAvailable } : prev));
@@ -235,8 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       accessToken,
       isHydrating,
       isSigningOut,
-      signIn,
-      signUp,
+      verifyCode,
       signOut,
       refreshProfile,
       updateAvailability,
@@ -246,8 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       accessToken,
       isHydrating,
       isSigningOut,
-      signIn,
-      signUp,
+      verifyCode,
       signOut,
       refreshProfile,
       updateAvailability,

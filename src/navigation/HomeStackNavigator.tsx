@@ -1,7 +1,10 @@
-import { DrawerToggleButton } from '@react-navigation/drawer';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { BookingDetailScreen } from '../screens/bookings/BookingDetailScreen';
+import {
+  EditReservationScreen,
+  editReservationScreenOptions,
+} from '../screens/bookings/EditReservationScreen';
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { PickupSignScreen } from '../screens/pickup/PickupSignScreen';
 import { driverNativeStackScreenOptions } from './driverHeaderOptions';
@@ -18,14 +21,18 @@ export function HomeStackNavigator() {
         name="HomeMain"
         component={HomeScreen}
         options={{
-          title: 'Home',
-          headerLeft: (props) => <DrawerToggleButton tintColor={props.tintColor} />,
+          headerShown: false,
         }}
       />
       <Stack.Screen
         name="BookingDetail"
         component={BookingDetailScreen}
-        options={{ title: 'Booking details' }}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="EditReservation"
+        component={EditReservationScreen}
+        options={({ navigation }) => editReservationScreenOptions({ navigation })}
       />
       <Stack.Screen
         name="PickupSign"

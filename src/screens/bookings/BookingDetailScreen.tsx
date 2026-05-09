@@ -34,7 +34,7 @@ const COPY_TICK_MS = 1600;
 const HEADER_BLUE = '#2196F3';
 const ICON_BLACK = '#111827';
 const FOOTER_MUTED = '#9CA3AF';
-const SITE_URL = 'https://www.taxibarcelonas.com';
+const SITE_URL = 'https://www.taxibarcelona24.com';
 
 function notifyCopiedAndroid() {
   if (Platform.OS === 'android') {
@@ -267,7 +267,7 @@ export function BookingDetailScreen() {
           RES# {formatResNumber(b)}
         </Text>
         <Text style={styles.headerBrand} numberOfLines={1}>
-          TAXIBARCELONAS
+          TAXIBARCELONA24
         </Text>
         <Pressable
           onPress={() => navigation.goBack()}
@@ -352,7 +352,7 @@ export function BookingDetailScreen() {
         <View style={styles.footer}>
           <Image source={{ uri: qrUri }} style={styles.qr} resizeMode="contain" />
           <View style={styles.footerCenter}>
-            <Text style={styles.footerSite}>www.taxibarcelonas.com</Text>
+            <Text style={styles.footerSite}>www.taxibarcelona24.com</Text>
           </View>
           <Text style={styles.footerTime}>{viewedAtLabel}</Text>
         </View>

@@ -24,6 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MyReservationsCard } from '../../components/bookings/MyReservationsCard';
 import { AnimatedEmptyList, Screen } from '../../components';
 import { useAuth } from '../../context/AuthContext';
+import { useDebouncedValue } from '../../hooks';
 import { logger } from '../../lib/logger';
 import type { BookingsStackParamList } from '../../navigation/types';
 import { bookingsApi } from '../../services/bookings/bookingsApi';
@@ -35,6 +36,8 @@ import type { Booking, BookingListTimeScope } from '../../types/booking';
 import { colors, spacing, typography } from '../../theme';
 
 const PAGE_SIZE = 25;
+
+const BOOKING_REF_DEBOUNCE_MS = 300;
 
 const TABS: { key: BookingListTimeScope; label: string }[] = [
   { key: 'upcoming', label: 'Upcoming' },
@@ -118,13 +121,16 @@ export function BookingsListScreen() {
     upcoming: emptySection(),
   });
   const [refreshing, setRefreshing] = useState(false);
-  const [refQuery, setRefQuery] = useState('');
+  const [bookingRefQuery, setBookingRefQuery] = useState('');
+  const debouncedBookingRefQuery = useDebouncedValue(bookingRefQuery, BOOKING_REF_DEBOUNCE_MS);
   const [filterDate, setFilterDate] = useState<Date | null>(null);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [bookingDriverLabels, setBookingDriverLabels] = useState<Record<string, string>>({});
   const [editingBookingUuid, setEditingBookingUuid] = useState<string | null>(null);
   const [driverLabelModalVisible, setDriverLabelModalVisible] = useState(false);
   const [driverLabelDraft, setDriverLabelDraft] = useState('');
+  const [bookingRefModalVisible, setBookingRefModalVisible] = useState(false);
+  const [bookingRefDraft, setBookingRefDraft] = useState('');
 
   const activeRef = useRef(active);
   activeRef.current = active;
@@ -146,6 +152,12 @@ export function BookingsListScreen() {
       cancelled = true;
     };
   }, [user?.id]);
+
+  useEffect(() => {
+    if (active === 'current') {
+      setDatePickerVisible(false);
+    }
+  }, [active]);
 
   const openDriverLabelEditor = useCallback(
     (bookingUuid: string) => {
@@ -352,16 +364,20 @@ export function BookingsListScreen() {
 
   const filtered = useMemo(() => {
     let rows = section.items;
-    const q = refQuery.trim().toLowerCase();
+    const q = debouncedBookingRefQuery.trim().toLowerCase();
     if (q) {
-      rows = rows.filter((b) => b.bookingReference.toLowerCase().includes(q));
+      rows = rows.filter((b) =>
+        String(b.bookingReference ?? '')
+          .toLowerCase()
+          .includes(q),
+      );
     }
-    if (filterDate) {
+    if (filterDate && active !== 'current') {
       const fk = localDayKeyFromDate(filterDate);
       rows = rows.filter((b) => localDayKeyFromIso(b.scheduledTime) === fk);
     }
     return rows;
-  }, [section.items, refQuery, filterDate]);
+  }, [section.items, debouncedBookingRefQuery, filterDate, active]);
 
   const sections = useMemo((): Section[] => {
     const groups = new Map<string, Booking[]>();
@@ -476,6 +492,20 @@ export function BookingsListScreen() {
     }
   }, []);
 
+  const openBookingRefModal = useCallback(() => {
+    setBookingRefDraft(bookingRefQuery);
+    setBookingRefModalVisible(true);
+  }, [bookingRefQuery]);
+
+  const closeBookingRefModal = useCallback(() => {
+    setBookingRefModalVisible(false);
+  }, []);
+
+  const applyBookingRefModal = useCallback(() => {
+    setBookingRefQuery(bookingRefDraft);
+    setBookingRefModalVisible(false);
+  }, [bookingRefDraft]);
+
   const listHeader = (
     <View style={styles.headerBlock}>
       <View style={styles.tabRow}>
@@ -497,42 +527,48 @@ export function BookingsListScreen() {
       </View>
 
       <View style={styles.searchRow}>
-        <Ionicons name="document-text-outline" size={20} color="#616161" style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search by Booking Ref"
-          placeholderTextColor="#9E9E9E"
-          value={refQuery}
-          onChangeText={setRefQuery}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        {refQuery.trim() ? (
-          <Pressable onPress={() => setRefQuery('')} hitSlop={8}>
+        <Pressable
+          onPress={openBookingRefModal}
+          style={styles.searchTriggerInner}
+          accessibilityRole="button"
+          accessibilityLabel="Search by booking reference"
+        >
+          <Ionicons name="document-text-outline" size={20} color="#616161" style={styles.searchIcon} />
+          <Text
+            numberOfLines={1}
+            style={bookingRefQuery.trim() ? styles.searchDateValue : styles.searchDatePlaceholder}
+          >
+            {bookingRefQuery.trim() ? bookingRefQuery.trim() : 'Search by booking ref'}
+          </Text>
+        </Pressable>
+        {bookingRefQuery.trim() ? (
+          <Pressable onPress={() => setBookingRefQuery('')} hitSlop={8}>
             <Text style={styles.clearText}>Clear</Text>
           </Pressable>
         ) : null}
       </View>
 
-      <View style={styles.searchRow}>
-        <Ionicons name="calendar-outline" size={20} color="#616161" style={styles.searchIcon} />
-        <Pressable style={styles.searchDateFlex} onPress={() => setDatePickerVisible(true)}>
-          <Text style={filterDate ? styles.searchDateValue : styles.searchDatePlaceholder}>
-            {filterDate ? formatFilterDateLabel(filterDate) : 'Search by date'}
-          </Text>
-        </Pressable>
-        {filterDate ? (
-          <Pressable
-            onPress={() => {
-              setFilterDate(null);
-              setDatePickerVisible(false);
-            }}
-            hitSlop={8}
-          >
-            <Text style={styles.clearText}>Clear</Text>
+      {active !== 'current' ? (
+        <View style={styles.searchRow}>
+          <Ionicons name="calendar-outline" size={20} color="#616161" style={styles.searchIcon} />
+          <Pressable style={styles.searchDateFlex} onPress={() => setDatePickerVisible(true)}>
+            <Text style={filterDate ? styles.searchDateValue : styles.searchDatePlaceholder}>
+              {filterDate ? formatFilterDateLabel(filterDate) : 'Search by date'}
+            </Text>
           </Pressable>
-        ) : null}
-      </View>
+          {filterDate ? (
+            <Pressable
+              onPress={() => {
+                setFilterDate(null);
+                setDatePickerVisible(false);
+              }}
+              hitSlop={8}
+            >
+              <Text style={styles.clearText}>Clear</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 
@@ -593,6 +629,7 @@ export function BookingsListScreen() {
               onOpenDetail={() => navigation.navigate('BookingDetail', { uuid: item.uuid })}
               onEdit={() => navigation.navigate('EditReservation', { uuid: item.uuid })}
               onDelete={() => onDeleteBooking(item)}
+              showCompleteButton={active === 'current'}
               onComplete={() => onCompleteBooking(item)}
             />
           )}
@@ -646,7 +683,65 @@ export function BookingsListScreen() {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {datePickerVisible && (
+      <Modal
+        visible={bookingRefModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeBookingRefModal}
+      >
+        <TouchableWithoutFeedback onPress={closeBookingRefModal}>
+          <View style={styles.driverLabelOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.driverLabelSheet}>
+                <Text style={styles.driverLabelTitle}>Search by booking ref</Text>
+                <Text style={styles.driverLabelHint}>Tap Done to filter the list. Cancel discards changes.</Text>
+                <TextInput
+                  value={bookingRefDraft}
+                  onChangeText={setBookingRefDraft}
+                  placeholder="Booking reference"
+                  placeholderTextColor="#9E9E9E"
+                  style={styles.driverLabelInput}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoFocus
+                />
+                <View style={styles.bookingRefModalActions}>
+                  <View style={styles.bookingRefModalLeft}>
+                    {bookingRefDraft.trim() ? (
+                      <Pressable
+                        onPress={() => setBookingRefDraft('')}
+                        hitSlop={8}
+                        style={({ pressed }) => [pressed && styles.pressed]}
+                      >
+                        <Text style={styles.clearText}>Clear</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                  <View style={styles.driverLabelActions}>
+                    <Pressable
+                      onPress={closeBookingRefModal}
+                      style={({ pressed }) => [
+                        styles.driverLabelBtnSecondary,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Text style={styles.driverLabelBtnSecondaryText}>Cancel</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={applyBookingRefModal}
+                      style={({ pressed }) => [styles.driverLabelBtnPrimary, pressed && styles.pressed]}
+                    >
+                      <Text style={styles.driverLabelBtnPrimaryText}>Done</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {datePickerVisible && active !== 'current' && (
         <>
           <DateTimePicker
             value={filterDate ?? new Date()}
@@ -717,11 +812,21 @@ const styles = StyleSheet.create({
   searchIcon: {
     marginRight: spacing.sm,
   },
-  searchInput: {
+  searchTriggerInner: {
     flex: 1,
-    ...typography.body,
-    color: '#212121',
-    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+  },
+  bookingRefModalActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  bookingRefModalLeft: {
+    minWidth: 56,
+    justifyContent: 'center',
   },
   searchDateFlex: {
     flex: 1,

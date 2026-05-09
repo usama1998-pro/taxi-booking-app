@@ -23,6 +23,7 @@ import {
 
 import { useAuth } from '../../context/AuthContext';
 import { bookingDropoffLabel, bookingPickupLabel } from '../../lib/bookingFormat';
+import { getDriverRootNavigation } from '../../navigation/getDriverRootNavigation';
 import type { BookingDetailHostStackParamList } from '../../navigation/types';
 import { bookingsApi } from '../../services/bookings/bookingsApi';
 import type { Booking } from '../../types/booking';
@@ -138,6 +139,15 @@ export function EditReservationScreen() {
   const [notes, setNotes] = useState('');
   const [pickerTarget, setPickerTarget] = useState<PickerTarget>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const goToBookingsList = useCallback(() => {
+    const rootNav = getDriverRootNavigation(navigation);
+    if (rootNav) {
+      rootNav.navigate('Bookings', { screen: 'BookingsList' });
+      return;
+    }
+    navigation.goBack();
+  }, [navigation]);
 
   const scheduledIso = useMemo(
     () => combineDateAndTime(puDate, puTime).toISOString(),
@@ -273,13 +283,6 @@ export function EditReservationScreen() {
       return;
     }
 
-    if (dropoffKind === 'location' && !dropoffSimpleStreet) {
-      if (!dropoffAirline.trim() || !dropoffFlight.trim()) {
-        Alert.alert('Required', 'Please enter airline and flight for drop-off.');
-        return;
-      }
-    }
-
     let pickupLocation: Record<string, unknown>;
     if (pickupKind === 'location') {
       pickupLocation = {
@@ -321,9 +324,15 @@ export function EditReservationScreen() {
       dropoffLocation = {
         kind: 'location',
         label: FIXED_AIRPORT_LABEL,
-        airline: dropoffAirline.trim(),
-        flight: dropoffFlight.trim(),
       };
+      const da = dropoffAirline.trim();
+      const df = dropoffFlight.trim();
+      if (da) {
+        dropoffLocation.airline = da;
+      }
+      if (df) {
+        dropoffLocation.flight = df;
+      }
       returnTime = combineDateAndTime(puDate, dropoffTime).toISOString();
     }
 
@@ -346,7 +355,7 @@ export function EditReservationScreen() {
         returnTime,
         note: notes.trim() || null,
       });
-      navigation.navigate('BookingDetail', { uuid });
+      goToBookingsList();
     } catch (e) {
       Alert.alert('Update failed', e instanceof Error ? e.message : 'Could not save changes.');
     } finally {
@@ -373,6 +382,7 @@ export function EditReservationScreen() {
     notes,
     passengerCount,
     scheduledIso,
+    goToBookingsList,
     navigation,
   ]);
 
@@ -612,10 +622,10 @@ export function EditReservationScreen() {
               </View>
               <View style={styles.tripleDivider} />
               <View style={styles.tripleCell}>
-                <Text style={styles.tripleHint}>Flight</Text>
+                <Text style={styles.tripleHint}>Flight (optional)</Text>
                 <TextInput
                   style={styles.tripleInput}
-                  placeholder="Flight"
+                  placeholder="Flight (optional)"
                   placeholderTextColor="rgba(255,255,255,0.6)"
                   value={dropoffFlight}
                   onChangeText={setDropoffFlight}

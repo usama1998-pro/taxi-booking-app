@@ -25,16 +25,19 @@ type Props = {
   onOpenDetail: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  /** When false, the complete (checkmark) action is hidden (e.g. Upcoming tab). */
+  showCompleteButton: boolean;
   onComplete: () => void;
 };
 
 function formatListTime(iso: string): string {
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    const value = new Intl.DateTimeFormat('en-US', {
       hour: '2-digit',
       minute: '2-digit',
-      hour12: false,
+      hour12: true,
     }).format(new Date(iso));
+    return value.replace(/\s?(am|pm)$/i, (_, m: string) => ` ${m.toUpperCase()}`);
   } catch {
     return '';
   }
@@ -47,6 +50,7 @@ export function MyReservationsCard({
   onOpenDetail,
   onEdit,
   onDelete,
+  showCompleteButton,
   onComplete,
 }: Props) {
   const passenger = bookingPassengerLabel(booking);
@@ -133,7 +137,7 @@ export function MyReservationsCard({
         >
           <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
         </Pressable>
-        {!isClosed ? (
+        {showCompleteButton && !isClosed ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Complete reservation"

@@ -83,7 +83,7 @@ export function bookingFlightLine(b: Booking): BookingFlightLine | null {
 /** App vs email booking heuristic for list icon. */
 export function bookingSourceIcon(b: Booking): 'phone-portrait-outline' | 'mail-outline' {
   const email = (b.customerEmail || b.user?.email || '').toLowerCase();
-  if (email.includes('@taxibarcelonas.guest')) {
+  if (email.includes('@taxibarcelona24.guest')) {
     return 'phone-portrait-outline';
   }
   return 'mail-outline';

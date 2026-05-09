@@ -154,7 +154,7 @@ export function InvoiceDetailScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Amounts</Text>
           <Row label="Subtotal" value={formatInvoiceMoney(inv.priceAmount)} />
-          <Row label={`Tax (${(inv.taxRate * 100).toFixed(0)}%)`} value={formatInvoiceMoney(inv.taxAmount)} />
+          <Row label="Tax (10%)" value={formatInvoiceMoney(inv.taxAmount)} />
           <Row label="Total" value={formatInvoiceMoney(inv.totalAmount)} />
         </View>
 

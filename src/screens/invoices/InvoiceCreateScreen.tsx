@@ -8,6 +8,7 @@ import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -17,6 +18,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Screen } from '../../components';
@@ -195,10 +197,13 @@ function parsePastedBookingDetailsBlock(raw: string): ParsedBookingPaste | null 
 
 type InvoiceCreateNav = NativeStackNavigationProp<InvoicesStackParamList, 'InvoiceCreate'>;
 
+const KEYBOARD_SCROLL_EXTRA_PAD = 280;
+
 export function InvoiceCreateScreen() {
   const navigation = useNavigation<InvoiceCreateNav>();
   const route = useRoute<RouteProp<InvoicesStackParamList, 'InvoiceCreate'>>();
   const { accessToken } = useAuth();
+  const insets = useSafeAreaInsets();
 
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -256,8 +261,8 @@ export function InvoiceCreateScreen() {
   const priceNum = Number.parseFloat(priceText.replace(/,/g, ''));
   const priceValid = Number.isFinite(priceNum) && priceNum >= 0;
   const subtotal = priceValid ? priceNum : 0;
-  const taxAmount = subtotal * TAX_RATE;
-  const totalAmount = subtotal + taxAmount;
+  const deductionAmount = subtotal * TAX_RATE;
+  const totalAmount = subtotal - deductionAmount;
 
   const handleBookingReferenceChange = useCallback((text: string) => {
     const parsed = parsePastedBookingDetailsBlock(text);
@@ -335,22 +340,6 @@ export function InvoiceCreateScreen() {
       setFormError('Name, phone, and booking reference are required.');
       return;
     }
-    if (pickupKind === 'LOCATION' && !pickupAddress.trim()) {
-      setFormError('Enter pick-up address for Location.');
-      return;
-    }
-    if (pickupKind === 'AIRPORT' && !pickupFlightNo.trim()) {
-      setFormError('Enter flight number for pick-up Airport (airline is optional).');
-      return;
-    }
-    if (dropoffKind === 'LOCATION' && !dropoffAddress.trim()) {
-      setFormError('Enter drop-off address for Location.');
-      return;
-    }
-    if (dropoffKind === 'AIRPORT' && !dropoffFlightNo.trim()) {
-      setFormError('Enter flight number for drop-off Airport (airline is optional).');
-      return;
-    }
     if (!priceValid || subtotal <= 0) {
       setFormError('Enter a valid price greater than zero.');
       return;
@@ -396,14 +385,22 @@ export function InvoiceCreateScreen() {
   };
 
   const fieldStyle = styles.textField;
+  const scrollBottomPad = spacing.xxl + insets.bottom + KEYBOARD_SCROLL_EXTRA_PAD;
 
   return (
     <Screen style={styles.screenRoot}>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={styles.kav}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
       >
+        <ScrollView
+          style={styles.scrollFlex}
+          contentContainerStyle={[styles.scroll, { paddingBottom: scrollBottomPad }]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+        >
         <TextInput
           style={fieldStyle}
           placeholder="Full Name"
@@ -560,7 +557,7 @@ export function InvoiceCreateScreen() {
         {dropoffKind === 'LOCATION' ? (
           <TextInput
             style={fieldStyle}
-            placeholder="Drop-off address"
+            placeholder="Drop-off address (optional)"
             placeholderTextColor="#B0BEC5"
             value={dropoffAddress}
             onChangeText={setDropoffAddress}
@@ -577,7 +574,7 @@ export function InvoiceCreateScreen() {
             />
             <TextInput
               style={fieldStyle}
-              placeholder="Flight number"
+              placeholder="Flight number (optional)"
               placeholderTextColor="#B0BEC5"
               value={dropoffFlightNo}
               onChangeText={setDropoffFlightNo}
@@ -595,7 +592,7 @@ export function InvoiceCreateScreen() {
         />
         <View style={[fieldStyle, styles.readonlyBox]}>
           <Text style={subtotal > 0 ? styles.readonlyValue : styles.readonlyPlaceholder}>
-            {subtotal > 0 ? formatInvoiceMoney(taxAmount) : '10% Tax'}
+            {subtotal > 0 ? formatInvoiceMoney(deductionAmount) : '10% tax'}
           </Text>
         </View>
         <View style={[fieldStyle, styles.readonlyBox]}>
@@ -618,6 +615,7 @@ export function InvoiceCreateScreen() {
           )}
         </Pressable>
       </ScrollView>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }
@@ -650,6 +648,8 @@ export function invoiceCreateScreenOptions({ navigation }: { navigation: Invoice
 
 const styles = StyleSheet.create({
   screenRoot: { flex: 1, backgroundColor: '#FFFFFF' },
+  kav: { flex: 1 },
+  scrollFlex: { flex: 1 },
   scroll: { padding: spacing.md, paddingBottom: spacing.xxl },
   textField: {
     borderWidth: StyleSheet.hairlineWidth,

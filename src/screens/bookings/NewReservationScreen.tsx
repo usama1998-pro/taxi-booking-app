@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 
 import { useAuth } from '../../context/AuthContext';
+import { getDriverRootNavigation } from '../../navigation/getDriverRootNavigation';
 import { bookingsApi } from '../../services/bookings/bookingsApi';
 import { spacing, typography } from '../../theme';
 import type { BookingsStackParamList } from '../../navigation/types';
@@ -34,7 +35,7 @@ type PickerTarget = 'time' | 'date' | null;
 function guestEmailFromPhone(phone: string): string {
   const digits = phone.replace(/\D/g, '');
   const core = digits.length > 0 ? digits : 'unknown';
-  return `guest.${core}@taxibarcelonas.guest`;
+  return `guest.${core}@taxibarcelona24.guest`;
 }
 
 function combineDateAndTime(datePart: Date, timePart: Date): Date {
@@ -101,6 +102,15 @@ export function NewReservationScreen() {
   const [pickerTarget, setPickerTarget] = useState<PickerTarget>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const goToBookingsList = useCallback(() => {
+    const rootNav = getDriverRootNavigation(navigation);
+    if (rootNav) {
+      rootNav.navigate('Bookings', { screen: 'BookingsList' });
+      return;
+    }
+    navigation.navigate('BookingsList');
+  }, [navigation]);
+
   const scheduledIso = useMemo(
     () => combineDateAndTime(puDate, puTime).toISOString(),
     [puDate, puTime],
@@ -141,14 +151,6 @@ export function NewReservationScreen() {
       Alert.alert('Required', 'Please enter full name and phone number.');
       return;
     }
-    if (pickupKind === 'location' && !pickupDetail.trim()) {
-      Alert.alert('Required', 'Please enter the pickup address.');
-      return;
-    }
-    if (dropoffKind === 'location' && !dropoffDetail.trim()) {
-      Alert.alert('Required', 'Please enter the drop-off address.');
-      return;
-    }
 
     const pickupLocation: Record<string, unknown> =
       pickupKind === 'airport'
@@ -187,8 +189,8 @@ export function NewReservationScreen() {
 
     setSubmitting(true);
     try {
-      const created = await bookingsApi.create(body);
-      navigation.replace('BookingDetail', { uuid: created.uuid });
+      await bookingsApi.create(body);
+      goToBookingsList();
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Could not create booking';
       Alert.alert('Booking failed', msg);
@@ -209,6 +211,7 @@ export function NewReservationScreen() {
     notes,
     passengerCount,
     scheduledIso,
+    goToBookingsList,
     navigation,
   ]);
 
@@ -325,7 +328,7 @@ export function NewReservationScreen() {
         {pickupKind === 'location' ? (
           <TextInput
             style={styles.textField}
-            placeholder="Street / area"
+            placeholder="Street / area (optional)"
             placeholderTextColor="#9CA3AF"
             value={pickupDetail}
             onChangeText={setPickupDetail}

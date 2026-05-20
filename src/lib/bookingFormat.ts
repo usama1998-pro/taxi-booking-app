@@ -61,6 +61,62 @@ export function bookingToDisplay(b: Booking): string {
   return bookingDropoffLabel(b);
 }
 
+function readLocationJson(value: unknown): Record<string, unknown> | null {
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return null;
+}
+
+/** Pickup is Barcelona airport (inbound flight / meet‑and‑greet fields on JSON). */
+export function isPickupAirportBooking(b: Booking): boolean {
+  return readLocationJson(b.pickupLocation)?.kind === 'airport';
+}
+
+/** Airline on airport pickup JSON (`pickupLocation.airline`), when set. */
+export function pickupArrivalAirline(b: Booking): string | null {
+  const o = readLocationJson(b.pickupLocation);
+  if (o?.kind !== 'airport') {
+    return null;
+  }
+  const a = o.airline;
+  return typeof a === 'string' && a.trim() ? a.trim() : null;
+}
+
+/** Flight on airport pickup JSON, else top-level `flightNumber` when set. */
+export function pickupArrivalFlight(b: Booking): string | null {
+  const o = readLocationJson(b.pickupLocation);
+  if (o?.kind === 'airport') {
+    const f = o.flight;
+    if (typeof f === 'string' && f.trim()) {
+      return f.trim();
+    }
+  }
+  const fn = b.flightNumber?.trim();
+  return fn || null;
+}
+
+export type DropoffReturnFlightInfo = {
+  airline: string | null;
+  flight: string | null;
+  returnTimeIso: string | null;
+};
+
+/**
+ * Return / outbound leg at airport (dropoff JSON + `returnTime`), when driver captured them.
+ */
+export function dropoffReturnFlightInfo(b: Booking): DropoffReturnFlightInfo | null {
+  const o = readLocationJson(b.dropoffLocation);
+  const airline =
+    typeof o?.airline === 'string' && o.airline.trim() ? o.airline.trim() : null;
+  const flight = typeof o?.flight === 'string' && o.flight.trim() ? o.flight.trim() : null;
+  const returnTimeIso = b.returnTime?.trim() ? b.returnTime.trim() : null;
+  if (!airline && !flight && !returnTimeIso) {
+    return null;
+  }
+  return { airline, flight, returnTimeIso };
+}
+
 export type BookingFlightLine = { flight: string; airline?: string };
 
 export function bookingFlightLine(b: Booking): BookingFlightLine | null {
@@ -80,8 +136,25 @@ export function bookingFlightLine(b: Booking): BookingFlightLine | null {
   return null;
 }
 
-/** App vs email booking heuristic for list icon. */
+/** Reservation imported from a Viator booking email (BR- reference or tagged note). */
+export function isViatorEmailBooking(b: Booking): boolean {
+  const ref = (b.bookingReference ?? '').trim().toUpperCase();
+  if (ref.startsWith('BR-')) {
+    return true;
+  }
+  const note = (b.note ?? '').trim();
+  if (note.startsWith('[Viator')) {
+    return true;
+  }
+  const email = (b.customerEmail || b.user?.email || '').toLowerCase();
+  return email.startsWith('viator.');
+}
+
+/** App (manual) vs Viator email booking icon on list cards. */
 export function bookingSourceIcon(b: Booking): 'phone-portrait-outline' | 'mail-outline' {
+  if (isViatorEmailBooking(b)) {
+    return 'mail-outline';
+  }
   const email = (b.customerEmail || b.user?.email || '').toLowerCase();
   if (email.includes('@taxibarcelona24.guest')) {
     return 'phone-portrait-outline';

@@ -1,10 +1,28 @@
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ViatorBookingDetailModal } from '../../components/viator/ViatorBookingDetailModal';
+import { ViatorNotificationBanner } from '../../components/viator/ViatorNotificationBanner';
 import { useAuth } from '../../context/AuthContext';
+import { useViatorNotifications } from '../../hooks/useViatorNotifications';
+import {
+  ensureNotificationPermissions,
+  notifyNewViatorBooking,
+} from '../../services/notifications/viatorLocalNotifications';
+import type { ViatorBookingInfo } from '../../lib/formatViatorBooking';
+import { viatorNotificationsApi } from '../../services/viator/viatorNotificationsApi';
 import { brandBlue, brandDisplayName } from '../../navigation/driverChrome';
 import { getDriverRootNavigation } from '../../navigation/getDriverRootNavigation';
 import { spacing, typography } from '../../theme';
@@ -18,7 +36,86 @@ export function HomeScreen() {
   const insets = useSafeAreaInsets();
   const homeStackNav = useNavigation();
   const rootNav = getDriverRootNavigation(homeStackNav);
-  const { signOut, isSigningOut } = useAuth();
+  const { signOut, isSigningOut, accessToken } = useAuth();
+  const {
+    unread: viatorUnread,
+    dismiss: dismissViator,
+    dismissAll: dismissAllViator,
+    refresh: refreshViator,
+  } = useViatorNotifications();
+  const [viatorTestLoading, setViatorTestLoading] = useState(false);
+  const [viatorDetailModal, setViatorDetailModal] = useState<{
+    title: string;
+    body: string;
+  } | null>(null);
+
+  const testLatestViatorMail = async () => {
+    if (!accessToken) {
+      Alert.alert('Sign in required', 'Log in to test Viator mail.');
+      return;
+    }
+    setViatorTestLoading(true);
+    try {
+      const permitted = await ensureNotificationPermissions();
+      const latest = await viatorNotificationsApi.fetchLatest(accessToken);
+      if (!latest.found) {
+        Alert.alert('Viator mail test', latest.message ?? 'No Viator booking email found.');
+        return;
+      }
+      let pushSent = false;
+      if (latest.viatorReference && latest.pickupDateLabel) {
+        pushSent = await notifyNewViatorBooking({
+          ...latest,
+          viatorReference: latest.viatorReference,
+          pickupDateLabel: latest.pickupDateLabel,
+        });
+      }
+      const footer: string[] = [];
+      if (latest.savedToDb) {
+        footer.push(
+          'Saved to database — open Bookings → Upcoming to see it.',
+        );
+      } else if (latest.alreadyInDatabase) {
+        footer.push(
+          'Already saved (same reference) — see Bookings → Upcoming.',
+        );
+      } else if (latest.message?.includes('could not save')) {
+        footer.push(latest.message);
+      } else {
+        footer.push(
+          'Could not confirm database save — check backend logs and try again.',
+        );
+      }
+      if (!permitted) {
+        footer.push(
+          'Notifications are off — enable them in Android Settings → Apps → Taxi Barcelona 24 → Notifications.',
+        );
+      } else if (pushSent) {
+        footer.push('Check your notification tray — a push alert was sent.');
+      } else {
+        footer.push(
+          'Could not show push alert. Rebuild the app (npx expo run:android).',
+        );
+      }
+      setViatorDetailModal({
+        title: 'Latest Viator booking email',
+        info: latest,
+        footerLines: footer,
+      });
+      // IMAP sync can take several seconds — do not block the button/modal UI.
+      void viatorNotificationsApi
+        .syncInbox(accessToken)
+        .then(() => refreshViator())
+        .catch(() => undefined);
+    } catch (e) {
+      Alert.alert(
+        'Viator mail test failed',
+        e instanceof Error ? e.message : 'Could not read Hostinger inbox.',
+      );
+    } finally {
+      setViatorTestLoading(false);
+    }
+  };
 
   const items: MenuItem[] = [
     {
@@ -41,6 +138,13 @@ export function HomeScreen() {
 
   return (
     <View style={styles.root}>
+      <ViatorBookingDetailModal
+        visible={viatorDetailModal != null}
+        title={viatorDetailModal?.title ?? ''}
+        info={viatorDetailModal?.info ?? { found: false }}
+        footerLines={viatorDetailModal?.footerLines}
+        onClose={() => setViatorDetailModal(null)}
+      />
       <StatusBar style="light" />
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <View style={styles.headerSide} />
@@ -71,6 +175,28 @@ export function HomeScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        <ViatorNotificationBanner
+          notifications={viatorUnread}
+          onDismiss={dismissViator}
+          onDismissAll={dismissAllViator}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Test latest Viator booking email"
+          disabled={viatorTestLoading}
+          onPress={() => void testLatestViatorMail()}
+          style={({ pressed }) => [
+            styles.testViatorBtn,
+            pressed && !viatorTestLoading && styles.menuButtonPressed,
+            viatorTestLoading && styles.testViatorBtnDisabled,
+          ]}
+        >
+          {viatorTestLoading ? (
+            <ActivityIndicator color={brandBlue} />
+          ) : (
+            <Text style={styles.testViatorBtnText}>TEST VIATOR MAIL</Text>
+          )}
+        </Pressable>
         {items.map((item) => (
           <Pressable
             key={item.label}
@@ -136,6 +262,26 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xl,
     paddingBottom: spacing.xxl,
     paddingHorizontal: spacing.lg,
+  },
+  testViatorBtn: {
+    borderWidth: 1,
+    borderColor: '#90CAF9',
+    backgroundColor: '#E3F2FD',
+    borderRadius: 12,
+    paddingVertical: spacing.sm + 2,
+    marginBottom: spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  testViatorBtnDisabled: {
+    opacity: 0.6,
+  },
+  testViatorBtnText: {
+    ...typography.caption,
+    color: '#1565C0',
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   menuButton: {
     borderWidth: 2,

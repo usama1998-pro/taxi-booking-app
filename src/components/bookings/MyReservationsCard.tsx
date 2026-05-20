@@ -8,6 +8,7 @@ import {
   bookingPassengerLabel,
   bookingSourceIcon,
   bookingToDisplay,
+  isViatorEmailBooking,
 } from '../../lib/bookingFormat';
 import type { Booking } from '../../types/booking';
 import { spacing, typography } from '../../theme';
@@ -54,11 +55,13 @@ export function MyReservationsCard({
   onComplete,
 }: Props) {
   const passenger = bookingPassengerLabel(booking);
+  const viatorMail = isViatorEmailBooking(booking);
   const sourceIcon = bookingSourceIcon(booking);
   const flight = bookingFlightLine(booking);
   const childSeats = bookingChildSeatsSummary(booking);
   const statusNorm = (booking.status ?? '').trim().toLowerCase();
   const isClosed = statusNorm === 'completed' || statusNorm === 'cancelled' || statusNorm === 'canceled';
+  const sourceIconColor = viatorMail ? brandBlue : actionGreen;
 
   return (
     <View style={styles.card}>
@@ -77,16 +80,23 @@ export function MyReservationsCard({
               <Text style={styles.customerName} numberOfLines={1}>
                 {passenger}
               </Text>
-              <Ionicons name={sourceIcon} size={22} color="#424242" />
+              <Ionicons
+                name={sourceIcon}
+                size={22}
+                color={sourceIconColor}
+                accessibilityLabel={
+                  viatorMail ? 'Viator email booking' : 'App booking'
+                }
+              />
             </View>
-            <Text style={styles.routeLine} numberOfLines={3}>
+            <View style={styles.routeLine}>
               <Text style={styles.routePrefix}>From : </Text>
-              <Text>{bookingFromDisplay(booking)}</Text>
-            </Text>
-            <Text style={styles.routeLine} numberOfLines={2}>
+              <Text style={styles.routeValue}>{bookingFromDisplay(booking)}</Text>
+            </View>
+            <View style={styles.routeLine}>
               <Text style={styles.routePrefix}>To : </Text>
-              <Text>{bookingToDisplay(booking)}</Text>
-            </Text>
+              <Text style={styles.routeValue}>{bookingToDisplay(booking)}</Text>
+            </View>
             <View style={styles.metaRow}>
               <View style={styles.metaCluster}>
                 <Ionicons name="person-outline" size={18} color="#424242" />
@@ -206,13 +216,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   routeLine: {
-    ...typography.body,
-    color: '#424242',
-    marginBottom: 2,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    marginBottom: 4,
   },
   routePrefix: {
+    fontSize: 14,
     fontWeight: '600',
     color: '#212121',
+    lineHeight: 20,
+  },
+  routeValue: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '400',
+    color: '#424242',
+    lineHeight: 20,
+    flexShrink: 1,
   },
   metaRow: {
     flexDirection: 'row',

@@ -19,6 +19,13 @@ import {
 
 import { useAuth } from '../../context/AuthContext';
 import { getDriverRootNavigation } from '../../navigation/getDriverRootNavigation';
+import {
+  combineDateAndTime,
+  isPickupInPast,
+  minimumPickupDate,
+  minimumPickupTimeForDate,
+  PICKUP_IN_PAST_MESSAGE,
+} from '../../lib/pickupDateTime';
 import { bookingsApi } from '../../services/bookings/bookingsApi';
 import { spacing, typography } from '../../theme';
 import type { BookingsStackParamList } from '../../navigation/types';
@@ -36,12 +43,6 @@ function guestEmailFromPhone(phone: string): string {
   const digits = phone.replace(/\D/g, '');
   const core = digits.length > 0 ? digits : 'unknown';
   return `guest.${core}@taxibarcelona24.guest`;
-}
-
-function combineDateAndTime(datePart: Date, timePart: Date): Date {
-  const next = new Date(datePart);
-  next.setHours(timePart.getHours(), timePart.getMinutes(), 0, 0);
-  return next;
 }
 
 function formatPuTime(d: Date): string {
@@ -116,6 +117,16 @@ export function NewReservationScreen() {
     [puDate, puTime],
   );
 
+  const pickerMinimumDate = useMemo(() => {
+    if (pickerTarget === 'date') {
+      return minimumPickupDate();
+    }
+    if (pickerTarget === 'time') {
+      return minimumPickupTimeForDate(puDate);
+    }
+    return undefined;
+  }, [pickerTarget, puDate]);
+
   const onPickerChange = useCallback(
     (event: DateTimePickerEvent, selected?: Date) => {
       if (Platform.OS === 'android') {
@@ -128,12 +139,18 @@ export function NewReservationScreen() {
         return;
       }
       if (pickerTarget === 'time') {
-        setPuTime(selected);
+        const next = selected;
+        if (minimumPickupTimeForDate(puDate) && next < minimumPickupTimeForDate(puDate)!) {
+          setPuTime(minimumPickupTimeForDate(puDate)!);
+        } else {
+          setPuTime(next);
+        }
       } else if (pickerTarget === 'date') {
-        setPuDate(selected);
+        const min = minimumPickupDate();
+        setPuDate(selected < min ? min : selected);
       }
     },
-    [pickerTarget],
+    [pickerTarget, puDate],
   );
 
   const adjustPassengers = useCallback((delta: number) => {
@@ -151,7 +168,6 @@ export function NewReservationScreen() {
       Alert.alert('Required', 'Please enter full name and phone number.');
       return;
     }
-
     const pickupLocation: Record<string, unknown> =
       pickupKind === 'airport'
         ? buildPickupAirportLocation(pickupAirline, pickupFlight)
@@ -423,6 +439,7 @@ export function NewReservationScreen() {
           value={pickerTarget === 'time' ? puTime : puDate}
           mode={pickerTarget === 'time' ? 'time' : 'date'}
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          minimumDate={pickerMinimumDate}
           onChange={onPickerChange}
         />
       )}

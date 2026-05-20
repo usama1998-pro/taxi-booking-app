@@ -23,6 +23,13 @@ import {
 
 import { useAuth } from '../../context/AuthContext';
 import { bookingDropoffLabel, bookingPickupLabel } from '../../lib/bookingFormat';
+import {
+  combineDateAndTime,
+  isPickupInPast,
+  minimumPickupDate,
+  minimumPickupTimeForDate,
+  PICKUP_IN_PAST_MESSAGE,
+} from '../../lib/pickupDateTime';
 import { getDriverRootNavigation } from '../../navigation/getDriverRootNavigation';
 import type { BookingDetailHostStackParamList } from '../../navigation/types';
 import { bookingsApi } from '../../services/bookings/bookingsApi';
@@ -41,12 +48,6 @@ type PickerTarget = 'time' | 'date' | 'dropoffTime' | null;
 
 type Nav = NavigationProp<BookingDetailHostStackParamList>;
 type Route = RouteProp<BookingDetailHostStackParamList, 'EditReservation'>;
-
-function combineDateAndTime(datePart: Date, timePart: Date): Date {
-  const next = new Date(datePart);
-  next.setHours(timePart.getHours(), timePart.getMinutes(), 0, 0);
-  return next;
-}
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
@@ -242,6 +243,16 @@ export function EditReservationScreen() {
     };
   }, [accessToken, uuid, hydrate]);
 
+  const pickerMinimumDate = useMemo(() => {
+    if (pickerTarget === 'date') {
+      return minimumPickupDate();
+    }
+    if (pickerTarget === 'time') {
+      return minimumPickupTimeForDate(puDate);
+    }
+    return undefined;
+  }, [pickerTarget, puDate]);
+
   const onPickerChange = useCallback(
     (event: DateTimePickerEvent, selected?: Date) => {
       if (Platform.OS === 'android') {
@@ -254,14 +265,16 @@ export function EditReservationScreen() {
         return;
       }
       if (pickerTarget === 'time') {
-        setPuTime(selected);
+        const minTime = minimumPickupTimeForDate(puDate);
+        setPuTime(minTime && selected < minTime ? minTime : selected);
       } else if (pickerTarget === 'date') {
-        setPuDate(selected);
+        const min = minimumPickupDate();
+        setPuDate(selected < min ? min : selected);
       } else if (pickerTarget === 'dropoffTime') {
         setDropoffTime(selected);
       }
     },
-    [pickerTarget],
+    [pickerTarget, puDate],
   );
 
   const adjustPassengers = useCallback((delta: number) => {
@@ -282,7 +295,10 @@ export function EditReservationScreen() {
       Alert.alert('Required', 'Booking is missing a customer email in our records.');
       return;
     }
-
+    if (isPickupInPast(puDate, puTime)) {
+      Alert.alert('Invalid pickup', PICKUP_IN_PAST_MESSAGE);
+      return;
+    }
     let pickupLocation: Record<string, unknown>;
     if (pickupKind === 'location') {
       pickupLocation = {
@@ -686,6 +702,7 @@ export function EditReservationScreen() {
           }
           mode={pickerTarget === 'date' ? 'date' : 'time'}
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          minimumDate={pickerTarget === 'dropoffTime' ? undefined : pickerMinimumDate}
           onChange={onPickerChange}
         />
       )}

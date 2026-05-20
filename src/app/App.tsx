@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import '../services/notifications/viatorLocalNotifications';
 import { AuthProvider } from '../context/AuthContext';
 import { RootNavigator } from '../navigation/RootNavigator';
 

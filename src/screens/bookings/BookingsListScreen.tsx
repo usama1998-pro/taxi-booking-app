@@ -24,7 +24,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MyReservationsCard } from '../../components/bookings/MyReservationsCard';
 import { AnimatedEmptyList, Screen } from '../../components';
 import { useAuth } from '../../context/AuthContext';
-import { useDebouncedValue } from '../../hooks';
+import { useDebouncedValue, useViatorNotifications } from '../../hooks';
+import { ViatorNotificationBanner } from '../../components/viator/ViatorNotificationBanner';
 import { logger } from '../../lib/logger';
 import type { BookingsStackParamList } from '../../navigation/types';
 import { bookingsApi } from '../../services/bookings/bookingsApi';
@@ -131,6 +132,12 @@ export function BookingsListScreen() {
   const [driverLabelDraft, setDriverLabelDraft] = useState('');
   const [bookingRefModalVisible, setBookingRefModalVisible] = useState(false);
   const [bookingRefDraft, setBookingRefDraft] = useState('');
+  const {
+    unread: viatorUnread,
+    dismiss: dismissViator,
+    dismissAll: dismissAllViator,
+    refresh: refreshViator,
+  } = useViatorNotifications();
 
   const activeRef = useRef(active);
   activeRef.current = active;
@@ -506,8 +513,19 @@ export function BookingsListScreen() {
     setBookingRefModalVisible(false);
   }, [bookingRefDraft]);
 
+  useFocusEffect(
+    useCallback(() => {
+      void refreshViator();
+    }, [refreshViator]),
+  );
+
   const listHeader = (
     <View style={styles.headerBlock}>
+      <ViatorNotificationBanner
+        notifications={viatorUnread}
+        onDismiss={dismissViator}
+        onDismissAll={dismissAllViator}
+      />
       <View style={styles.tabRow}>
         {TABS.map((tab, i) => (
           <Pressable

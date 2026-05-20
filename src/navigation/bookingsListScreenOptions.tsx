@@ -1,5 +1,6 @@
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
+import { spacing } from '../theme';
 import {
   brandBlue,
   brandDisplayName,
@@ -14,7 +15,10 @@ export function bookingsListScreenOptions({ navigation }: { navigation: Nav }) {
   return {
     headerShown: true,
     title: brandDisplayName,
-    headerStyle: { backgroundColor: brandBlue },
+    headerStyle: {
+      backgroundColor: brandBlue,
+      paddingTop: spacing.sm,
+    },
     headerTintColor: '#FFFFFF',
     headerTitleStyle: {
       color: '#FFFFFF',

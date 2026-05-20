@@ -1,4 +1,5 @@
 import * as Clipboard from 'expo-clipboard';
+import * as MediaLibrary from 'expo-media-library';
 import { Ionicons } from '@expo/vector-icons';
 import type { RouteProp } from '@react-navigation/native';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -15,13 +16,24 @@ import {
   StyleSheet,
   Text,
   ToastAndroid,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import ViewShot, { captureRef } from 'react-native-view-shot';
 
 import { Screen } from '../../components';
 import { useAuth } from '../../context/AuthContext';
-import { bookingFromDisplay, bookingPassengerLabel, bookingToDisplay } from '../../lib/bookingFormat';
+import {
+  bookingFromDisplay,
+  bookingPassengerLabel,
+  bookingToDisplay,
+  dropoffReturnFlightInfo,
+  isPickupAirportBooking,
+  isViatorEmailBooking,
+  pickupArrivalAirline,
+  pickupArrivalFlight,
+} from '../../lib/bookingFormat';
 import { logger } from '../../lib/logger';
 import type { BookingDetailHostStackParamList } from '../../navigation/types';
 import { bookingsApi } from '../../services/bookings/bookingsApi';
@@ -35,10 +47,21 @@ const HEADER_BLUE = '#2196F3';
 const ICON_BLACK = '#111827';
 const FOOTER_MUTED = '#9CA3AF';
 const SITE_URL = 'https://www.taxibarcelona24.com';
+const ICON_SIZE = 20;
+const HEADER_ICON_SIZE = 22;
+const QR_PX = 76;
 
 function notifyCopiedAndroid() {
   if (Platform.OS === 'android') {
     ToastAndroid.show('Copied to clipboard', ToastAndroid.SHORT);
+  }
+}
+
+function notifySavedToGallery() {
+  if (Platform.OS === 'android') {
+    ToastAndroid.show('Saved to gallery', ToastAndroid.SHORT);
+  } else {
+    Alert.alert('Saved', 'Screenshot saved to your photo library.');
   }
 }
 
@@ -64,6 +87,31 @@ function formatPickupDate(iso: string): string {
 }
 
 function formatPickupTime(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(new Date(iso));
+  } catch {
+    return '';
+  }
+}
+
+function formatReturnDate(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
+function formatReturnTime(iso: string): string {
   try {
     return new Intl.DateTimeFormat(undefined, {
       hour: '2-digit',
@@ -112,6 +160,7 @@ export function BookingDetailScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<BookingDetailHostStackParamList, 'BookingDetail'>>();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const { uuid } = route.params;
   const { accessToken } = useAuth();
   const [booking, setBooking] = useState<Booking | null>(null);
@@ -120,6 +169,8 @@ export function BookingDetailScreen() {
   const [completing, setCompleting] = useState(false);
   const [starting, setStarting] = useState(false);
   const [viewedAtLabel] = useState(() => formatFooterTimestamp(new Date()));
+  const [savingScreenshot, setSavingScreenshot] = useState(false);
+  const screenshotRef = useRef<ViewShot>(null);
 
   const load = useCallback(async () => {
     if (!accessToken) {
@@ -217,6 +268,45 @@ export function BookingDetailScreen() {
     [qrPayload],
   );
 
+  const onSaveScreenshot = useCallback(async () => {
+    if (savingScreenshot) {
+      return;
+    }
+    setSavingScreenshot(true);
+    try {
+      const permission = await MediaLibrary.requestPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          'Permission needed',
+          'Allow access to your photos so booking screenshots can be saved to the gallery.',
+        );
+        return;
+      }
+
+      const shotRef = screenshotRef.current;
+      if (!shotRef) {
+        Alert.alert('Could not save', 'Screenshot is not ready yet. Try again.');
+        return;
+      }
+
+      const uri = await captureRef(shotRef, {
+        format: 'png',
+        quality: 1,
+        result: 'tmpfile',
+      });
+      await MediaLibrary.saveToLibraryAsync(uri);
+      notifySavedToGallery();
+    } catch (e) {
+      logger.warn('BookingDetailScreen: screenshot save failed', e);
+      Alert.alert(
+        'Could not save',
+        e instanceof Error ? e.message : 'Failed to save screenshot to the gallery.',
+      );
+    } finally {
+      setSavingScreenshot(false);
+    }
+  }, [savingScreenshot]);
+
   if (loading) {
     return (
       <Screen style={styles.centered}>
@@ -234,10 +324,12 @@ export function BookingDetailScreen() {
   }
 
   const b = booking;
+  const dropoffReturn = dropoffReturnFlightInfo(b);
   const customerNameForSign =
     b.customerName?.trim() || b.user?.fullName?.trim() || bookingPassengerLabel(b);
   const displayCustomerName =
     b.customerName?.trim() || b.user?.fullName?.trim() || bookingPassengerLabel(b);
+  const viatorMail = isViatorEmailBooking(b);
 
   const openPickupSign = () => {
     navigation.navigate('PickupSign', { customerName: customerNameForSign });
@@ -260,102 +352,181 @@ export function BookingDetailScreen() {
     void Linking.openURL(smsUrl(p));
   };
 
+  const scrollMinHeight = windowHeight - insets.bottom;
+
+  const bodyMinHeight = scrollMinHeight - insets.top - 48;
+
   return (
     <View style={styles.root}>
-      <View style={[styles.appHeader, { paddingTop: insets.top }]}>
-        <Text style={styles.headerRes} numberOfLines={1}>
-          RES# {formatResNumber(b)}
-        </Text>
-        <Text style={styles.headerBrand} numberOfLines={1}>
-          TAXIBARCELONA24
-        </Text>
-        <Pressable
-          onPress={() => navigation.goBack()}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel="Close"
-          style={styles.headerCloseBtn}
-        >
-          <Ionicons name="close" size={26} color="#FFFFFF" />
-        </Pressable>
-      </View>
-      <View style={styles.headerHairline} />
-
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + spacing.lg }]}
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { minHeight: scrollMinHeight, paddingBottom: insets.bottom + spacing.sm },
+        ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Section title="Pickup Information">
-          <InfoRow label="Pickup Address" value={bookingFromDisplay(b)} />
-          <InfoRow label="Passengers" value={String(b.passengerCount)} />
-          <InfoRow label="Pickup Date" value={formatPickupDate(b.scheduledTime)} />
-          <InfoRow label="Pickup Time" value={formatPickupTime(b.scheduledTime)} />
-        </Section>
-
-        <Section title="Dropoff Information">
-          <InfoRow label="Dropoff Address" value={bookingToDisplay(b)} />
-        </Section>
-
-        <Section title="Customer Information">
-          <CustomerNameRow
-            name={displayCustomerName}
-            onEyePress={openPickupSign}
-            onCopyName={async () => {
-              const ok = await copyStringToClipboard(displayCustomerName);
-              if (ok) {
-                notifyCopiedAndroid();
-              } else {
-                Alert.alert('Copy failed', 'Could not copy to the clipboard.');
-              }
-            }}
-          />
-          {b.customerPhone?.trim() ? (
-            <PhoneRow
-              phone={b.customerPhone.trim()}
-              onCall={openTel}
-              onMessage={openSms}
-              onCopy={async () => {
-                const ok = await copyStringToClipboard(b.customerPhone!.trim());
-                if (ok) {
-                  notifyCopiedAndroid();
-                } else {
-                  Alert.alert('Copy failed', 'Could not copy to the clipboard.');
-                }
-              }}
-            />
-          ) : null}
-          <BookingRefRow
-            reference={b.bookingReference?.trim() || '—'}
-            onCopy={async () => {
-              const ref = b.bookingReference?.trim();
-              if (!ref) {
-                return;
-              }
-              const ok = await copyStringToClipboard(ref);
-              if (ok) {
-                notifyCopiedAndroid();
-              } else {
-                Alert.alert('Copy failed', 'Could not copy to the clipboard.');
-              }
-            }}
-          />
-        </Section>
-
-        {b.note?.trim() ? (
-          <View style={styles.noteWrap}>
-            <Text style={styles.noteLabel}>Note</Text>
-            <Text style={styles.noteBody}>{b.note.trim()}</Text>
+        <ViewShot
+          ref={screenshotRef}
+          collapsable={false}
+          options={{ format: 'png', quality: 1 }}
+          style={[styles.screenshotCapture, { minHeight: scrollMinHeight }]}
+        >
+          <View style={[styles.appHeader, { paddingTop: insets.top }]}>
+            <View style={styles.headerLeft}>
+              <Text style={styles.headerRes} numberOfLines={1}>
+                RES# {formatResNumber(b)}
+              </Text>
+              {viatorMail ? (
+                <Ionicons
+                  name="mail-outline"
+                  size={HEADER_ICON_SIZE}
+                  color="#FFFFFF"
+                  accessibilityLabel="Viator email booking"
+                />
+              ) : null}
+            </View>
+            <Text style={styles.headerBrand} numberOfLines={1}>
+              TAXIBARCELONA24
+            </Text>
+            <View style={styles.headerRight}>
+              <Pressable
+                onPress={() => void onSaveScreenshot()}
+                disabled={savingScreenshot}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Save screenshot to gallery"
+                style={styles.headerActionBtn}
+              >
+                {savingScreenshot ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Ionicons name="camera-outline" size={HEADER_ICON_SIZE} color="#FFFFFF" />
+                )}
+              </Pressable>
+              <Pressable
+                onPress={() => navigation.goBack()}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                style={styles.headerActionBtn}
+              >
+                <Ionicons name="close" size={HEADER_ICON_SIZE + 2} color="#FFFFFF" />
+              </Pressable>
+            </View>
           </View>
-        ) : null}
+          <View style={styles.headerHairline} />
 
-        <View style={styles.footer}>
-          <Image source={{ uri: qrUri }} style={styles.qr} resizeMode="contain" />
-          <View style={styles.footerCenter}>
-            <Text style={styles.footerSite}>www.taxibarcelona24.com</Text>
+          <View style={[styles.fillColumn, { minHeight: bodyMinHeight }]}>
+            <View style={styles.sectionsBlock}>
+              <Section title="Pickup Information">
+                <InfoRow label="Pickup Address" value={bookingFromDisplay(b)} />
+                <InfoRow label="Passengers" value={String(b.passengerCount)} />
+                <InfoRow label="Pickup Date" value={formatPickupDate(b.scheduledTime)} />
+                <InfoRow label="Pickup Time" value={formatPickupTime(b.scheduledTime)} />
+                {isPickupAirportBooking(b) ? (
+                  <>
+                    <InfoRow label="Arrival airline" value={pickupArrivalAirline(b) ?? '—'} />
+                    <InfoRow label="Arrival flight" value={pickupArrivalFlight(b) ?? '—'} />
+                    <InfoRow
+                      label="Arrival time"
+                      value={`${formatPickupDate(b.scheduledTime)} · ${formatPickupTime(b.scheduledTime)}`}
+                    />
+                  </>
+                ) : pickupArrivalFlight(b) ? (
+                  <>
+                    <InfoRow label="Arrival airline" value={pickupArrivalAirline(b) ?? '—'} />
+                    <InfoRow label="Arrival flight" value={pickupArrivalFlight(b)!} />
+                    <InfoRow
+                      label="Arrival time"
+                      value={`${formatPickupDate(b.scheduledTime)} · ${formatPickupTime(b.scheduledTime)}`}
+                    />
+                  </>
+                ) : null}
+              </Section>
+
+              <Section title="Dropoff Information">
+                <InfoRow label="Dropoff Address" value={bookingToDisplay(b)} />
+                {dropoffReturn ? (
+                  <>
+                    <InfoRow label="Return airline" value={dropoffReturn.airline ?? '—'} />
+                    <InfoRow label="Return flight" value={dropoffReturn.flight ?? '—'} />
+                    <InfoRow
+                      label="Return time"
+                      value={
+                        dropoffReturn.returnTimeIso
+                          ? `${formatReturnDate(dropoffReturn.returnTimeIso)} · ${formatReturnTime(dropoffReturn.returnTimeIso)}`
+                          : '—'
+                      }
+                    />
+                  </>
+                ) : null}
+              </Section>
+
+              <Section title="Customer Information">
+                <CustomerNameRow
+                  name={displayCustomerName}
+                  showViatorMail={viatorMail}
+                  onEyePress={openPickupSign}
+                  onCopyName={async () => {
+                    const ok = await copyStringToClipboard(displayCustomerName);
+                    if (ok) {
+                      notifyCopiedAndroid();
+                    } else {
+                      Alert.alert('Copy failed', 'Could not copy to the clipboard.');
+                    }
+                  }}
+                />
+                {b.customerPhone?.trim() ? (
+                  <PhoneRow
+                    phone={b.customerPhone.trim()}
+                    onCall={openTel}
+                    onMessage={openSms}
+                    onCopy={async () => {
+                      const ok = await copyStringToClipboard(b.customerPhone!.trim());
+                      if (ok) {
+                        notifyCopiedAndroid();
+                      } else {
+                        Alert.alert('Copy failed', 'Could not copy to the clipboard.');
+                      }
+                    }}
+                  />
+                ) : null}
+                <BookingRefRow
+                  reference={b.bookingReference?.trim() || '—'}
+                  onCopy={async () => {
+                    const ref = b.bookingReference?.trim();
+                    if (!ref) {
+                      return;
+                    }
+                    const ok = await copyStringToClipboard(ref);
+                    if (ok) {
+                      notifyCopiedAndroid();
+                    } else {
+                      Alert.alert('Copy failed', 'Could not copy to the clipboard.');
+                    }
+                  }}
+                />
+              </Section>
+
+              {b.note?.trim() ? (
+                <View style={styles.noteWrap}>
+                  <Text style={styles.noteLabel}>Note</Text>
+                  <Text style={styles.noteBody}>{b.note.trim()}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            <View style={styles.footer}>
+              <Image source={{ uri: qrUri }} style={styles.qr} resizeMode="contain" />
+              <View style={styles.footerCenter}>
+                <Text style={styles.footerSite}>www.taxibarcelona24.com</Text>
+              </View>
+              <Text style={styles.footerTime}>{viewedAtLabel}</Text>
+            </View>
           </View>
-          <Text style={styles.footerTime}>{viewedAtLabel}</Text>
-        </View>
+        </ViewShot>
       </ScrollView>
     </View>
   );
@@ -383,10 +554,12 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 
 function CustomerNameRow({
   name,
+  showViatorMail,
   onEyePress,
   onCopyName,
 }: {
   name: string;
+  showViatorMail?: boolean;
   onEyePress: () => void;
   onCopyName: () => void;
 }) {
@@ -413,9 +586,17 @@ function CustomerNameRow({
     <View style={styles.infoRow}>
       <Text style={styles.infoLabel}>Customer Name</Text>
       <View style={styles.valueWithIcons}>
-        <Text style={styles.infoValueFlex} numberOfLines={3}>
+        <Text style={styles.infoValueFlex} numberOfLines={2}>
           {name}
         </Text>
+        {showViatorMail ? (
+          <Ionicons
+            name="mail-outline"
+            size={ICON_SIZE}
+            color={HEADER_BLUE}
+            accessibilityLabel="Viator email booking"
+          />
+        ) : null}
         <Pressable
           onPress={onEyePress}
           hitSlop={10}
@@ -423,7 +604,7 @@ function CustomerNameRow({
           accessibilityLabel="Show pickup sign with customer name"
           style={styles.iconBtn}
         >
-          <Ionicons name="eye-outline" size={22} color={ICON_BLACK} />
+          <Ionicons name="eye-outline" size={ICON_SIZE} color={ICON_BLACK} />
         </Pressable>
         <Pressable
           onPress={async () => {
@@ -437,7 +618,7 @@ function CustomerNameRow({
         >
           <Ionicons
             name={showTick ? 'checkmark-circle' : 'copy-outline'}
-            size={22}
+            size={ICON_SIZE}
             color={showTick ? colors.success : ICON_BLACK}
           />
         </Pressable>
@@ -486,7 +667,7 @@ function PhoneRow({
           accessibilityLabel="Call customer"
           style={styles.phoneCircle}
         >
-          <Ionicons name="call" size={18} color="#FFFFFF" />
+          <Ionicons name="call" size={16} color="#FFFFFF" />
         </Pressable>
         <Text style={styles.infoValueFlex} selectable>
           {phone}
@@ -498,7 +679,7 @@ function PhoneRow({
           accessibilityLabel="Message customer"
           style={styles.iconBtn}
         >
-          <Ionicons name="chatbubble-outline" size={22} color={ICON_BLACK} />
+          <Ionicons name="chatbubble-outline" size={ICON_SIZE} color={ICON_BLACK} />
         </Pressable>
         <Pressable
           onPress={async () => {
@@ -512,7 +693,7 @@ function PhoneRow({
         >
           <Ionicons
             name={showTick ? 'checkmark-circle' : 'copy-outline'}
-            size={22}
+            size={ICON_SIZE}
             color={showTick ? colors.success : ICON_BLACK}
           />
         </Pressable>
@@ -543,7 +724,7 @@ function BookingRefRow({ reference, onCopy }: { reference: string; onCopy: () =>
 
   return (
     <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>Booking Ref</Text>
+      <Text style={styles.infoLabel}>Ref</Text>
       <View style={styles.valueWithIcons}>
         <Text style={styles.infoValueFlex} selectable>
           {reference}
@@ -576,6 +757,22 @@ const styles = StyleSheet.create({
   },
   pad: { padding: spacing.lg, paddingBottom: spacing.xxl },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  scroll: {
+    flex: 1,
+  },
+  screenshotCapture: {
+    flexGrow: 1,
+    backgroundColor: colors.background,
+  },
+  fillColumn: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  sectionsBlock: {
+    flex: 1,
+    justifyContent: 'space-evenly',
+    paddingVertical: spacing.sm,
+  },
   appHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -584,54 +781,70 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     gap: spacing.xs,
   },
-  headerRes: {
-    flexShrink: 0,
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
+    minWidth: 0,
     maxWidth: '32%',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 0,
+    gap: 2,
+  },
+  headerActionBtn: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerRes: {
+    flexShrink: 1,
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: 13,
   },
   headerBrand: {
     flex: 1,
     textAlign: 'center',
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 15,
-    letterSpacing: 0.5,
-  },
-  headerCloseBtn: {
-    flexShrink: 0,
-    padding: spacing.xs,
+    fontSize: 14,
+    letterSpacing: 0.4,
+    paddingHorizontal: 4,
   },
   headerHairline: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: '#FFFFFF',
   },
   scrollContent: {
-    paddingTop: 0,
+    flexGrow: 1,
   },
   section: {
     marginBottom: 0,
   },
   sectionBar: {
     backgroundColor: HEADER_BLUE,
-    paddingVertical: 10,
+    paddingVertical: 8,
     paddingHorizontal: spacing.md,
   },
   sectionBarText: {
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 15,
+    fontSize: 14,
   },
   sectionBody: {
     backgroundColor: colors.background,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.xs,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingVertical: spacing.sm,
+    paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
@@ -639,20 +852,24 @@ const styles = StyleSheet.create({
     width: '38%',
     paddingRight: spacing.sm,
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: 13,
+    lineHeight: 18,
     color: ICON_BLACK,
   },
   infoValue: {
     flex: 1,
-    fontSize: 14,
+    flexShrink: 1,
+    fontSize: 13,
     fontWeight: '400',
     color: ICON_BLACK,
+    lineHeight: 18,
   },
   infoValueFlex: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '400',
     color: ICON_BLACK,
+    lineHeight: 18,
     minWidth: 0,
   },
   valueWithIcons: {
@@ -666,16 +883,16 @@ const styles = StyleSheet.create({
     padding: spacing.xs,
   },
   phoneCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: colors.success,
     alignItems: 'center',
     justifyContent: 'center',
   },
   noteWrap: {
     marginHorizontal: spacing.md,
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
     padding: spacing.md,
     backgroundColor: colors.surface,
     borderRadius: 8,
@@ -683,13 +900,14 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   noteLabel: {
-    ...typography.caption,
+    fontSize: 12,
     fontWeight: '700',
     color: colors.primaryMuted,
     marginBottom: spacing.xs,
   },
   noteBody: {
-    ...typography.body,
+    fontSize: 13,
+    lineHeight: 18,
     color: colors.primary,
   },
   footer: {
@@ -697,13 +915,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.xl,
+    paddingTop: spacing.md,
     paddingBottom: spacing.sm,
     gap: spacing.sm,
   },
   qr: {
-    width: 88,
-    height: 88,
+    width: QR_PX,
+    height: QR_PX,
     backgroundColor: colors.background,
   },
   footerCenter: {
@@ -713,12 +931,12 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   footerSite: {
-    fontSize: 13,
+    fontSize: 12,
     color: FOOTER_MUTED,
     textAlign: 'center',
   },
   footerTime: {
-    fontSize: 12,
+    fontSize: 11,
     color: FOOTER_MUTED,
     flexShrink: 0,
   },

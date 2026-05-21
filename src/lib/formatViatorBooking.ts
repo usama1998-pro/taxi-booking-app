@@ -1,3 +1,5 @@
+import { phoneForDisplay } from './phoneFormat';
+
 export type ViatorBookingDetailRow = {
   label: string;
   value: string;
@@ -107,7 +109,7 @@ export function formatViatorNotificationBody(info: ViatorBookingInfo): string {
     parts.push(`Pickup: ${info.pickupLocation}`);
   }
   if (info.phone) {
-    parts.push(info.phone);
+    parts.push(phoneForDisplay(info.phone));
   }
   const body = parts.join(' · ');
   return body.length > 220 ? `${body.slice(0, 217)}…` : body;

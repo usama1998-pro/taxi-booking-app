@@ -19,6 +19,7 @@ import {
 
 import { useAuth } from '../../context/AuthContext';
 import { getDriverRootNavigation } from '../../navigation/getDriverRootNavigation';
+import { getAppUiMessage } from '../../lib/apiErrors';
 import {
   combineDateAndTime,
   isPickupInPast,
@@ -208,7 +209,7 @@ export function NewReservationScreen() {
       await bookingsApi.create(body);
       goToBookingsList();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Could not create booking';
+      const msg = getAppUiMessage(e, 'Could not create booking. Please try again.');
       Alert.alert('Booking failed', msg);
     } finally {
       setSubmitting(false);

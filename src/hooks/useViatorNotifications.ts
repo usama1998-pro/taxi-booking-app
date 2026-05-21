@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, type AppStateStatus } from 'react-native';
 
 import { useAuth } from '../context/AuthContext';
+import { isViatorTestNotification } from '../lib/isViatorTestNotification';
 import { logger } from '../lib/logger';
 import {
   ensureNotificationPermissions,
@@ -12,8 +12,6 @@ import {
   viatorNotificationsApi,
   type ViatorNotification,
 } from '../services/viator/viatorNotificationsApi';
-
-const POLL_MS = 60_000;
 
 function mergeNotifications(
   prev: ViatorNotification[],
@@ -43,31 +41,29 @@ export function useViatorNotifications(options?: { enabled?: boolean }) {
   const [unread, setUnread] = useState<ViatorNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [notificationsReady, setNotificationsReady] = useState(false);
 
   const knownIdsRef = useRef(new Set<string>());
   const dismissedIdsRef = useRef(new Set<string>());
-  /** First inbox load: show in banner only, no push (avoids spam on app open). */
+  const sessionStartedAtRef = useRef(Date.now());
   const inboxSeededRef = useRef(false);
 
   useEffect(() => {
     if (!enabled) {
       inboxSeededRef.current = false;
+      sessionStartedAtRef.current = Date.now();
       knownIdsRef.current.clear();
       dismissedIdsRef.current.clear();
-      setNotificationsReady(false);
+      setUnread([]);
+      setUnreadCount(0);
+      void setViatorBadgeCount(0);
+    }
+  }, [enabled]);
+
+  useEffect(() => {
+    if (!enabled) {
       return;
     }
-    let cancelled = false;
-    (async () => {
-      const ok = await ensureNotificationPermissions();
-      if (!cancelled) {
-        setNotificationsReady(ok);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    void ensureNotificationPermissions();
   }, [enabled]);
 
   const pushAlertsForNew = useCallback(async (list: ViatorNotification[]) => {
@@ -76,44 +72,41 @@ export function useViatorNotifications(options?: { enabled?: boolean }) {
       return;
     }
 
-    if (!inboxSeededRef.current) {
-      for (const n of list) {
-        knownIdsRef.current.add(n.id);
-      }
-      inboxSeededRef.current = true;
-      return;
-    }
+    const catchUpCutoff = sessionStartedAtRef.current - 15_000;
 
     for (const n of list) {
       if (knownIdsRef.current.has(n.id) || dismissedIdsRef.current.has(n.id)) {
         continue;
       }
       knownIdsRef.current.add(n.id);
-      const sent = await notifyNewViatorBooking(n);
+
+      const receivedMs = new Date(n.receivedAt).getTime();
+      const isTest = isViatorTestNotification(n);
+      const isCatchUp =
+        !inboxSeededRef.current && receivedMs < catchUpCutoff && !isTest;
+      if (isCatchUp) {
+        continue;
+      }
+
+      const sent = await notifyNewViatorBooking({ ...n, isTestBooking: isTest });
       if (!sent) {
-        logger.warn('push alert not sent for', n.viatorReference);
+        logger.warn('local notification not sent for', n.viatorReference);
       }
     }
+
+    inboxSeededRef.current = true;
   }, []);
 
   const refresh = useCallback(async () => {
     if (!accessToken) {
-      logger.debug('viator poll skip: no access token');
       setUnread([]);
       setUnreadCount(0);
       void setViatorBadgeCount(0);
       return;
     }
-    const pollStartedAt = Date.now();
-    logger.debug('viator poll start');
     setLoading(true);
     try {
-      const syncResult = await viatorNotificationsApi.syncInbox(accessToken);
-      logger.debug(
-        `viator poll sync result: scanned=${syncResult.scanned}, added=${syncResult.added}`,
-      );
       const list = await viatorNotificationsApi.list(accessToken, { limit: 10 });
-      logger.debug(`viator poll list result: notifications=${list.length}`);
       let merged: ViatorNotification[] = [];
       setUnread((prev) => {
         merged = mergeNotifications(prev, list, dismissedIdsRef.current);
@@ -121,9 +114,7 @@ export function useViatorNotifications(options?: { enabled?: boolean }) {
         void setViatorBadgeCount(merged.length);
         return merged;
       });
-      logger.debug(`viator poll merged unread: count=${merged.length}`);
       await pushAlertsForNew(merged);
-      logger.debug(`viator poll complete in ${Date.now() - pollStartedAt}ms`);
     } catch (e) {
       logger.warn('useViatorNotifications: refresh failed', e);
     } finally {
@@ -173,41 +164,10 @@ export function useViatorNotifications(options?: { enabled?: boolean }) {
     }
   }, [accessToken]);
 
-  useEffect(() => {
-    if (!enabled) {
-      return;
-    }
-    logger.debug(`viator polling enabled (intervalMs=${POLL_MS})`);
-    void refresh();
-    const timer = setInterval(() => {
-      logger.debug('viator poll tick: interval');
-      void refresh();
-    }, POLL_MS);
-    const onAppState = (state: AppStateStatus) => {
-      if (state === 'active') {
-        logger.debug('viator poll tick: app became active');
-        void refresh();
-      }
-    };
-    const sub = AppState.addEventListener('change', onAppState);
-    return () => {
-      clearInterval(timer);
-      sub.remove();
-    };
-  }, [enabled, refresh]);
-
-  /** Re-poll after permission is granted (first poll often ran too early). */
-  useEffect(() => {
-    if (enabled && notificationsReady) {
-      void refresh();
-    }
-  }, [enabled, notificationsReady, refresh]);
-
   return {
     unread,
     unreadCount,
     loading,
-    notificationsReady,
     refresh,
     dismiss,
     dismissAll,

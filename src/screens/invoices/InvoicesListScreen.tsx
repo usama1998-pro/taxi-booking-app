@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AnimatedEmptyList, Screen } from '../../components';
 import { useAuth } from '../../context/AuthContext';
 import { invoiceListSubtitle } from '../../lib/invoiceFormat';
+import { getAppUiMessage } from '../../lib/apiErrors';
 import { logger } from '../../lib/logger';
 import type { InvoicesStackParamList } from '../../navigation/types';
 import { invoicesApi } from '../../services/invoices/invoicesApi';
@@ -94,7 +95,7 @@ export function InvoicesListScreen() {
       setTotalPages(res.totalPages);
     } catch (e) {
       logger.warn('InvoicesListScreen: fetch failed', e);
-      setError(e instanceof Error ? e.message : 'Could not load invoices.');
+      setError(getAppUiMessage(e, 'Could not load invoices. Please try again.'));
       setItems([]);
       setPage(0);
       setTotalPages(0);
@@ -141,7 +142,7 @@ export function InvoicesListScreen() {
       setTotalPages(res.totalPages);
     } catch (e) {
       logger.warn('InvoicesListScreen: load more failed', e);
-      setLoadMoreError(e instanceof Error ? e.message : 'Could not load more invoices.');
+      setLoadMoreError(getAppUiMessage(e, 'Could not load more invoices. Please try again.'));
     } finally {
       setLoadingMore(false);
       appendLockRef.current = false;

@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { phoneForDisplay } from '../../lib/phoneFormat';
 import type { ViatorNotification } from '../../services/viator/viatorNotificationsApi';
 import { colors, spacing, typography } from '../../theme';
 
@@ -36,7 +37,7 @@ export function ViatorNotificationBanner({
             <Text style={styles.detail}>Pickup: {latest.pickupLocation}</Text>
           ) : null}
           {latest.phone ? (
-            <Text style={styles.detail}>{latest.phone}</Text>
+            <Text style={styles.detail}>{phoneForDisplay(latest.phone)}</Text>
           ) : null}
           {notifications.length > 1 ? (
             <Text style={styles.more}>

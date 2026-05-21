@@ -1,5 +1,6 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
+import { ViatorNotificationsListener } from '../components/viator/ViatorNotificationsListener';
 import { BookingsStackNavigator } from './BookingsStackNavigator';
 import { HomeStackNavigator } from './HomeStackNavigator';
 import { InvoicesStackNavigator } from './InvoicesStackNavigator';
@@ -12,10 +13,13 @@ const Stack = createNativeStackNavigator<DriverRootParamList>();
  */
 export function DriverRootNavigator() {
   return (
-    <Stack.Navigator initialRouteName="Home" screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Home" component={HomeStackNavigator} />
-      <Stack.Screen name="Bookings" component={BookingsStackNavigator} />
-      <Stack.Screen name="Invoices" component={InvoicesStackNavigator} />
-    </Stack.Navigator>
+    <>
+      <ViatorNotificationsListener />
+      <Stack.Navigator initialRouteName="Home" screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="Home" component={HomeStackNavigator} />
+        <Stack.Screen name="Bookings" component={BookingsStackNavigator} />
+        <Stack.Screen name="Invoices" component={InvoicesStackNavigator} />
+      </Stack.Navigator>
+    </>
   );
 }

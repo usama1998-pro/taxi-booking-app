@@ -24,8 +24,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MyReservationsCard } from '../../components/bookings/MyReservationsCard';
 import { AnimatedEmptyList, Screen } from '../../components';
 import { useAuth } from '../../context/AuthContext';
-import { useDebouncedValue, useViatorNotifications } from '../../hooks';
-import { ViatorNotificationBanner } from '../../components/viator/ViatorNotificationBanner';
+import { useDebouncedValue } from '../../hooks';
+import { getAppUiMessage } from '../../lib/apiErrors';
 import { logger } from '../../lib/logger';
 import type { BookingsStackParamList } from '../../navigation/types';
 import { bookingsApi } from '../../services/bookings/bookingsApi';
@@ -132,13 +132,6 @@ export function BookingsListScreen() {
   const [driverLabelDraft, setDriverLabelDraft] = useState('');
   const [bookingRefModalVisible, setBookingRefModalVisible] = useState(false);
   const [bookingRefDraft, setBookingRefDraft] = useState('');
-  const {
-    unread: viatorUnread,
-    dismiss: dismissViator,
-    dismissAll: dismissAllViator,
-    refresh: refreshViator,
-  } = useViatorNotifications();
-
   const activeRef = useRef(active);
   activeRef.current = active;
   const byScopeRef = useRef(byScope);
@@ -254,7 +247,7 @@ export function BookingsListScreen() {
             ...prev[scope],
             loading: false,
             loadingMore: false,
-            error: e instanceof Error ? e.message : 'Could not load bookings.',
+            error: getAppUiMessage(e, 'Could not load bookings. Please try again.'),
             items: [],
             page: 0,
             total: 0,
@@ -327,7 +320,7 @@ export function BookingsListScreen() {
             ...prev[scope],
             loadingMore: false,
             loadMoreError:
-              e instanceof Error ? e.message : 'Could not load more bookings.',
+              getAppUiMessage(e, 'Could not load more bookings. Please try again.'),
           },
         }));
       } finally {
@@ -442,7 +435,7 @@ export function BookingsListScreen() {
                 } catch (e) {
                   Alert.alert(
                     'Cannot delete',
-                    e instanceof Error ? e.message : 'This booking could not be removed.',
+                    getAppUiMessage(e, 'This booking could not be removed. Please try again.'),
                   );
                 }
               })();
@@ -475,7 +468,7 @@ export function BookingsListScreen() {
                 } catch (e) {
                   Alert.alert(
                     'Cannot complete',
-                    e instanceof Error ? e.message : 'This booking could not be completed.',
+                    getAppUiMessage(e, 'This booking could not be completed. Please try again.'),
                   );
                 }
               })();
@@ -513,19 +506,8 @@ export function BookingsListScreen() {
     setBookingRefModalVisible(false);
   }, [bookingRefDraft]);
 
-  useFocusEffect(
-    useCallback(() => {
-      void refreshViator();
-    }, [refreshViator]),
-  );
-
   const listHeader = (
     <View style={styles.headerBlock}>
-      <ViatorNotificationBanner
-        notifications={viatorUnread}
-        onDismiss={dismissViator}
-        onDismissAll={dismissAllViator}
-      />
       <View style={styles.tabRow}>
         {TABS.map((tab, i) => (
           <Pressable

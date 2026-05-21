@@ -23,18 +23,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 
 import { Screen } from '../../components';
+import { BOOKING_TIME_ZONE } from '../../constants/timeZone';
 import { useAuth } from '../../context/AuthContext';
 import {
   bookingFromDisplay,
   bookingPassengerLabel,
   bookingToDisplay,
-  dropoffReturnFlightInfo,
-  isPickupAirportBooking,
   isViatorEmailBooking,
   pickupArrivalAirline,
   pickupArrivalFlight,
 } from '../../lib/bookingFormat';
+import { getAppUiMessage } from '../../lib/apiErrors';
 import { logger } from '../../lib/logger';
+import { phoneForDisplay } from '../../lib/phoneFormat';
 import type { BookingDetailHostStackParamList } from '../../navigation/types';
 import { bookingsApi } from '../../services/bookings/bookingsApi';
 import type { Booking } from '../../types/booking';
@@ -80,6 +81,7 @@ function formatPickupDate(iso: string): string {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
+      timeZone: BOOKING_TIME_ZONE,
     }).format(new Date(iso));
   } catch {
     return iso;
@@ -92,6 +94,7 @@ function formatPickupTime(iso: string): string {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
+      timeZone: BOOKING_TIME_ZONE,
     }).format(new Date(iso));
   } catch {
     return '';
@@ -185,7 +188,7 @@ export function BookingDetailScreen() {
       setBooking(b);
     } catch (e) {
       logger.warn('BookingDetailScreen: load failed', e);
-      setError(e instanceof Error ? e.message : 'Could not load booking.');
+      setError(getAppUiMessage(e, 'Could not load booking. Please try again.'));
       setBooking(null);
     } finally {
       setLoading(false);
@@ -203,7 +206,7 @@ export function BookingDetailScreen() {
       Alert.alert('Trip complete', 'This booking is now under Past. Latest completed trips stay at the top there.');
     } catch (e) {
       logger.warn('BookingDetailScreen: mark complete failed', e);
-      Alert.alert('Could not update', e instanceof Error ? e.message : 'Please try again.');
+      Alert.alert('Could not update', getAppUiMessage(e, 'Please try again.'));
     } finally {
       setCompleting(false);
     }
@@ -234,7 +237,7 @@ export function BookingDetailScreen() {
       );
     } catch (e) {
       logger.warn('BookingDetailScreen: start ride failed', e);
-      Alert.alert('Could not update', e instanceof Error ? e.message : 'Please try again.');
+      Alert.alert('Could not update', getAppUiMessage(e, 'Please try again.'));
     } finally {
       setStarting(false);
     }
@@ -300,7 +303,7 @@ export function BookingDetailScreen() {
       logger.warn('BookingDetailScreen: screenshot save failed', e);
       Alert.alert(
         'Could not save',
-        e instanceof Error ? e.message : 'Failed to save screenshot to the gallery.',
+        getAppUiMessage(e, 'Failed to save screenshot to the gallery.'),
       );
     } finally {
       setSavingScreenshot(false);
@@ -324,32 +327,32 @@ export function BookingDetailScreen() {
   }
 
   const b = booking;
-  const dropoffReturn = dropoffReturnFlightInfo(b);
   const customerNameForSign =
     b.customerName?.trim() || b.user?.fullName?.trim() || bookingPassengerLabel(b);
   const displayCustomerName =
     b.customerName?.trim() || b.user?.fullName?.trim() || bookingPassengerLabel(b);
   const viatorMail = isViatorEmailBooking(b);
+  const displayPhone = b.customerPhone?.trim()
+    ? phoneForDisplay(b.customerPhone.trim())
+    : '';
 
   const openPickupSign = () => {
     navigation.navigate('PickupSign', { customerName: customerNameForSign });
   };
 
   const openTel = () => {
-    const p = b.customerPhone?.trim();
-    if (!p) {
+    if (!displayPhone) {
       return;
     }
-    const href = `tel:${p.replace(/[^\d+]/g, '')}`;
+    const href = `tel:${displayPhone.replace(/[^\d+]/g, '')}`;
     void Linking.openURL(href);
   };
 
   const openSms = () => {
-    const p = b.customerPhone?.trim();
-    if (!p) {
+    if (!displayPhone) {
       return;
     }
-    void Linking.openURL(smsUrl(p));
+    void Linking.openURL(smsUrl(displayPhone));
   };
 
   const scrollMinHeight = windowHeight - insets.bottom;
@@ -425,43 +428,20 @@ export function BookingDetailScreen() {
                 <InfoRow label="Passengers" value={String(b.passengerCount)} />
                 <InfoRow label="Pickup Date" value={formatPickupDate(b.scheduledTime)} />
                 <InfoRow label="Pickup Time" value={formatPickupTime(b.scheduledTime)} />
-                {isPickupAirportBooking(b) ? (
-                  <>
-                    <InfoRow label="Arrival airline" value={pickupArrivalAirline(b) ?? '—'} />
-                    <InfoRow label="Arrival flight" value={pickupArrivalFlight(b) ?? '—'} />
-                    <InfoRow
-                      label="Arrival time"
-                      value={`${formatPickupDate(b.scheduledTime)} · ${formatPickupTime(b.scheduledTime)}`}
-                    />
-                  </>
-                ) : pickupArrivalFlight(b) ? (
-                  <>
-                    <InfoRow label="Arrival airline" value={pickupArrivalAirline(b) ?? '—'} />
-                    <InfoRow label="Arrival flight" value={pickupArrivalFlight(b)!} />
-                    <InfoRow
-                      label="Arrival time"
-                      value={`${formatPickupDate(b.scheduledTime)} · ${formatPickupTime(b.scheduledTime)}`}
-                    />
-                  </>
-                ) : null}
+                <InfoRow label="Arrival airline" value={pickupArrivalAirline(b) ?? '—'} />
+                <InfoRow label="Arrival flight" value={pickupArrivalFlight(b) ?? '—'} />
+                <InfoRow
+                  label="Arrival time"
+                  value={
+                    b.scheduledTime
+                      ? `${formatPickupDate(b.scheduledTime)} · ${formatPickupTime(b.scheduledTime)}`
+                      : '—'
+                  }
+                />
               </Section>
 
               <Section title="Dropoff Information">
                 <InfoRow label="Dropoff Address" value={bookingToDisplay(b)} />
-                {dropoffReturn ? (
-                  <>
-                    <InfoRow label="Return airline" value={dropoffReturn.airline ?? '—'} />
-                    <InfoRow label="Return flight" value={dropoffReturn.flight ?? '—'} />
-                    <InfoRow
-                      label="Return time"
-                      value={
-                        dropoffReturn.returnTimeIso
-                          ? `${formatReturnDate(dropoffReturn.returnTimeIso)} · ${formatReturnTime(dropoffReturn.returnTimeIso)}`
-                          : '—'
-                      }
-                    />
-                  </>
-                ) : null}
               </Section>
 
               <Section title="Customer Information">
@@ -478,13 +458,13 @@ export function BookingDetailScreen() {
                     }
                   }}
                 />
-                {b.customerPhone?.trim() ? (
+                {displayPhone ? (
                   <PhoneRow
-                    phone={b.customerPhone.trim()}
+                    phone={displayPhone}
                     onCall={openTel}
                     onMessage={openSms}
                     onCopy={async () => {
-                      const ok = await copyStringToClipboard(b.customerPhone!.trim());
+                      const ok = await copyStringToClipboard(displayPhone);
                       if (ok) {
                         notifyCopiedAndroid();
                       } else {

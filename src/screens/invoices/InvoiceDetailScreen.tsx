@@ -18,7 +18,9 @@ import {
   formatInvoiceMoney,
 } from '../../lib/invoiceFormat';
 import { downloadInvoicePdf } from '../../lib/invoicePdfDownload';
+import { getAppUiMessage } from '../../lib/apiErrors';
 import { logger } from '../../lib/logger';
+import { phoneForDisplay } from '../../lib/phoneFormat';
 import type { InvoicesStackParamList } from '../../navigation/types';
 import { invoicesApi } from '../../services/invoices/invoicesApi';
 import type { DriverInvoice } from '../../types/invoice';
@@ -48,7 +50,7 @@ export function InvoiceDetailScreen() {
       setInv(row);
     } catch (e) {
       logger.warn('InvoiceDetailScreen: load failed', e);
-      setError(e instanceof Error ? e.message : 'Could not load invoice.');
+      setError(getAppUiMessage(e, 'Could not load invoice. Please try again.'));
       setInv(null);
     } finally {
       setLoading(false);
@@ -112,7 +114,7 @@ export function InvoiceDetailScreen() {
       }
     } catch (e) {
       logger.warn('InvoiceDetailScreen: PDF failed', e);
-      Alert.alert('PDF failed', e instanceof Error ? e.message : 'Could not save the PDF.');
+      Alert.alert('PDF failed', getAppUiMessage(e, 'Could not save the PDF. Please try again.'));
     } finally {
       setPdfBusy(false);
     }
@@ -138,7 +140,7 @@ export function InvoiceDetailScreen() {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Customer</Text>
-          <Row label="Phone" value={inv.phoneNumber} />
+          <Row label="Phone" value={phoneForDisplay(inv.phoneNumber)} />
         </View>
 
         <View style={styles.card}>

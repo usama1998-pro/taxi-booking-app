@@ -1,4 +1,4 @@
-const PREFIX = '[TaxiDriver]';
+const PREFIX = '[Taxi Barcelona 24]';
 
 export const logger = {
   debug: (...args: unknown[]) => {

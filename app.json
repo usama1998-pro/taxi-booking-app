@@ -15,11 +15,13 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
+        "CFBundleDisplayName": "Taxi Barcelona 24",
         "UIFileSharingEnabled": true,
         "LSSupportsOpeningDocumentsInPlace": true
       }
     },
     "android": {
+      "label": "Taxi Barcelona 24",
       "permissions": ["POST_NOTIFICATIONS"],
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {

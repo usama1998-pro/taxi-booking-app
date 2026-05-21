@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '../../context/AuthContext';
@@ -99,9 +99,7 @@ export function VerificationScreen() {
           return;
         }
         logger.warn('VerificationScreen: verify failed', e);
-        setFormError(
-          e instanceof Error ? e.message : getAuthUiMessage(e, 'verification'),
-        );
+        setFormError(getAuthUiMessage(e, 'verification'));
         setAttemptsLeft((n) => Math.max(0, n - 1));
         pendingCodeRef.current = null;
         setDigits(Array(CODE_LENGTH).fill(''));
@@ -164,6 +162,17 @@ export function VerificationScreen() {
         {formError && !lockedOut ? (
           <Text style={styles.formError}>{formError}</Text>
         ) : null}
+
+        {isSubmitting ? (
+          <View
+            style={styles.loaderWrap}
+            accessibilityRole="progressbar"
+            accessibilityLabel="Verifying your code"
+          >
+            <ActivityIndicator size="small" color={screen.label} />
+            <Text style={styles.loaderText}>Verifying your code…</Text>
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -223,5 +232,17 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     textAlign: 'center',
     paddingHorizontal: spacing.md,
+  },
+  loaderWrap: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.xl,
+    gap: spacing.sm,
+  },
+  loaderText: {
+    ...typography.caption,
+    color: screen.label,
+    textAlign: 'center',
   },
 });

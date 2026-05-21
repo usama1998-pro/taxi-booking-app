@@ -11,6 +11,7 @@ import {
   isViatorEmailBooking,
 } from '../../lib/bookingFormat';
 import type { Booking } from '../../types/booking';
+import { BOOKING_TIME_ZONE } from '../../constants/timeZone';
 import { spacing, typography } from '../../theme';
 
 const brandBlue = '#1E88E5';
@@ -37,6 +38,7 @@ function formatListTime(iso: string): string {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
+      timeZone: BOOKING_TIME_ZONE,
     }).format(new Date(iso));
     return value.replace(/\s?(am|pm)$/i, (_, m: string) => ` ${m.toUpperCase()}`);
   } catch {

@@ -7,28 +7,11 @@ export type ViatorNotification = {
   viatorReference: string;
   pickupDateLabel: string;
   receivedAt: string;
-} & ViatorBookingInfo;
-
-export type ViatorLatestMail = {
-  found: boolean;
-  message?: string;
-  savedToDb?: boolean;
-  alreadyInDatabase?: boolean;
-  bookingUuid?: string;
+  /** True for #BR-TEST inbox imports. */
+  isTestBooking?: boolean;
 } & ViatorBookingInfo;
 
 export const viatorNotificationsApi = {
-  fetchLatest(accessToken: string): Promise<ViatorLatestMail> {
-    return api.get<ViatorLatestMail>('/viator/inbox/latest', accessToken);
-  },
-
-  syncInbox(accessToken: string): Promise<{ added: number; scanned: number }> {
-    return api.post<{ added: number; scanned: number }>(
-      '/viator/inbox/sync',
-      {},
-      accessToken,
-    );
-  },
   list(
     accessToken: string,
     options?: { limit?: number },

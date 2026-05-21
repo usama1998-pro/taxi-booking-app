@@ -6,6 +6,7 @@ import {
   bookingDropoffLabel,
   bookingPickupLabel,
 } from './bookingFormat';
+import { phoneForDisplay } from './phoneFormat';
 
 function scheduledLocalYmd(iso: string): string | null {
   const d = new Date(iso);
@@ -37,7 +38,8 @@ function cleanLocationLabel(s: string): string {
 export function bookingToInvoicePrefill(b: Booking): InvoiceCreatePrefill {
   const tripYmd = scheduledLocalYmd(b.scheduledTime) ?? '';
   const fullName = (b.customerName?.trim() || b.user?.fullName?.trim() || '').trim();
-  const phone = (b.customerPhone?.trim() || b.user?.phone?.trim() || '').trim();
+  const rawPhone = (b.customerPhone?.trim() || b.user?.phone?.trim() || '').trim();
+  const phone = rawPhone ? phoneForDisplay(rawPhone) : '';
   const pickupAddr = cleanLocationLabel(bookingPickupLabel(b));
   const dropAddr = cleanLocationLabel(bookingDropoffLabel(b));
   const ref = b.bookingReference?.trim() ?? '';

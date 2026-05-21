@@ -62,13 +62,17 @@ export async function ensureNotificationPermissions(): Promise<boolean> {
 function buildContent(item: {
   viatorReference: string;
   pickupDateLabel: string;
+  isTestBooking?: boolean;
 }): Notifications.NotificationContentInput {
+  const title = item.isTestBooking
+    ? 'Viator test booking'
+    : 'New Viator booking';
   return {
-    title: 'New Viator booking',
+    title,
     body: `${item.viatorReference} — ${item.pickupDateLabel}`,
     data: {
       viatorReference: item.viatorReference,
-      type: 'viator-booking',
+      type: item.isTestBooking ? 'viator-test-booking' : 'viator-booking',
     },
     sound: 'default',
     ...(Platform.OS === 'android' ? { channelId: ANDROID_CHANNEL_ID } : {}),
@@ -79,6 +83,7 @@ export async function notifyNewViatorBooking(
   item: ViatorBookingInfo & {
     viatorReference: string;
     pickupDateLabel: string;
+    isTestBooking?: boolean;
   },
 ): Promise<boolean> {
   try {

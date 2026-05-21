@@ -22,7 +22,9 @@ import {
 } from 'react-native';
 
 import { useAuth } from '../../context/AuthContext';
+import { getAppUiMessage } from '../../lib/apiErrors';
 import { bookingDropoffLabel, bookingPickupLabel } from '../../lib/bookingFormat';
+import { phoneForDisplay } from '../../lib/phoneFormat';
 import {
   combineDateAndTime,
   isPickupInPast,
@@ -161,7 +163,8 @@ export function EditReservationScreen() {
     setPuTime(scheduled);
     setPassengerCount(Math.min(MAX_PASSENGERS_EDIT, Math.max(1, b.passengerCount)));
     setFullName(b.customerName?.trim() || b.user?.fullName || '');
-    setPhone(b.customerPhone?.trim() || b.user?.phone || '');
+    const rawPhone = b.customerPhone?.trim() || b.user?.phone || '';
+    setPhone(rawPhone ? phoneForDisplay(rawPhone) : '');
     setBookingRefDisplay(b.bookingReference);
     setCustomerEmailKeep((b.customerEmail || b.user?.email || '').trim());
     setNotes(b.note ?? '');
@@ -230,7 +233,7 @@ export function EditReservationScreen() {
         }
       } catch (e) {
         if (!cancelled) {
-          setLoadError(e instanceof Error ? e.message : 'Could not load booking.');
+          setLoadError(getAppUiMessage(e, 'Could not load booking. Please try again.'));
         }
       } finally {
         if (!cancelled) {
@@ -373,7 +376,7 @@ export function EditReservationScreen() {
       });
       goToBookingsList();
     } catch (e) {
-      Alert.alert('Update failed', e instanceof Error ? e.message : 'Could not save changes.');
+      Alert.alert('Update failed', getAppUiMessage(e, 'Could not save changes. Please try again.'));
     } finally {
       setSubmitting(false);
     }

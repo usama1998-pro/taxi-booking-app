@@ -25,6 +25,7 @@ import { Screen } from '../../components';
 import { useAuth } from '../../context/AuthContext';
 import { formatInvoiceMoney } from '../../lib/invoiceFormat';
 import { downloadInvoicePdf } from '../../lib/invoicePdfDownload';
+import { getAppUiMessage } from '../../lib/apiErrors';
 import { logger } from '../../lib/logger';
 import { HeaderSignOutButton } from '../../navigation/driverChrome';
 import type { InvoicesStackParamList } from '../../navigation/types';
@@ -378,7 +379,7 @@ export function InvoiceCreateScreen() {
       Alert.alert('Success', message);
     } catch (e) {
       logger.warn('InvoiceCreate: submit failed', e);
-      setFormError(e instanceof Error ? e.message : 'Could not create invoice.');
+      setFormError(getAppUiMessage(e, 'Could not create invoice. Please try again.'));
     } finally {
       setSubmitting(false);
     }

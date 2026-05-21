@@ -3,22 +3,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Alert, Platform } from 'react-native';
 
 import { API_BASE_URL } from '../constants/config';
-
-async function readErrorMessage(res: Response): Promise<string> {
-  const text = await res.text();
-  try {
-    const j = JSON.parse(text) as { message?: unknown };
-    if (Array.isArray(j.message)) {
-      return j.message.map(String).join('\n');
-    }
-    if (typeof j.message === 'string') {
-      return j.message;
-    }
-  } catch {
-    /* ignore */
-  }
-  return text.trim() || `Request failed (${res.status})`;
-}
+import { ApiRequestError, readResponseErrorMessage } from './apiErrors';
 
 function uint8ToBase64(bytes: Uint8Array): string {
   let binary = '';
@@ -119,11 +104,18 @@ export async function downloadInvoicePdf(
   const path = `/drivers/me/invoices/${invoiceId}/pdf`;
   const url = `${API_BASE_URL}${path}`;
 
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+  } catch (e) {
+    const raw = e instanceof Error ? e.message : String(e);
+    throw new ApiRequestError(raw || 'Network error', 0, path);
+  }
   if (!res.ok) {
-    throw new Error(await readErrorMessage(res));
+    const msg = await readResponseErrorMessage(res);
+    throw new ApiRequestError(msg, res.status, path);
   }
 
   const filename = `invoice-${invoiceId.slice(0, 8)}.pdf`;

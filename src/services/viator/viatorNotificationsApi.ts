@@ -11,7 +11,19 @@ export type ViatorNotification = {
   isTestBooking?: boolean;
 } & ViatorBookingInfo;
 
+type InboxCheckResponse = {
+  accepted: boolean;
+  status: 'started' | 'already_running';
+  lookbackHours: number;
+  message: string;
+};
+
 export const viatorNotificationsApi = {
+  /** Triggers IMAP import (public endpoint). Call before listing notifications. */
+  checkInbox(): Promise<InboxCheckResponse> {
+    return api.post<InboxCheckResponse>('/viator/inbox/check', {});
+  },
+
   list(
     accessToken: string,
     options?: { limit?: number },

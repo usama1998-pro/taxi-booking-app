@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, StyleSheet } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { useAuth } from '../context/AuthContext';
 import { getDriverRootNavigation } from './getDriverRootNavigation';
@@ -52,6 +52,35 @@ export function HeaderBackToHomeButton({ navigation }: { navigation: NavigationL
   );
 }
 
+export function HeaderRefreshButton({
+  onPress,
+  refreshing = false,
+}: {
+  onPress: () => void;
+  refreshing?: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={refreshing ? 'Refreshing' : 'Refresh bookings and Viator inbox'}
+      disabled={refreshing}
+      hitSlop={12}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.iconBtn,
+        pressed && !refreshing && styles.pressed,
+        refreshing && styles.disabled,
+      ]}
+    >
+      {refreshing ? (
+        <ActivityIndicator size="small" color="#FFFFFF" />
+      ) : (
+        <Ionicons name="refresh-outline" size={24} color="#FFFFFF" />
+      )}
+    </Pressable>
+  );
+}
+
 export function HeaderSignOutButton() {
   const { signOut, isSigningOut } = useAuth();
   return (
@@ -72,12 +101,35 @@ export function HeaderSignOutButton() {
   );
 }
 
+export function HeaderRefreshAndSignOut({
+  onRefresh,
+  refreshing = false,
+}: {
+  onRefresh: () => void;
+  refreshing?: boolean;
+}) {
+  return (
+    <View style={styles.headerRightRow}>
+      <HeaderRefreshButton onPress={onRefresh} refreshing={refreshing} />
+      <HeaderSignOutButton />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  headerRightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginRight: 4,
+  },
   iconBtn: {
     paddingHorizontal: 4,
     paddingVertical: 4,
     justifyContent: 'center',
     alignItems: 'center',
+    minWidth: 32,
+    minHeight: 32,
   },
   pressed: { opacity: 0.85 },
   disabled: { opacity: 0.45 },

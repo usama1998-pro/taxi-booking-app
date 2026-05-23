@@ -4,7 +4,7 @@ import DateTimePicker, {
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -24,7 +24,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MyReservationsCard } from '../../components/bookings/MyReservationsCard';
 import { AnimatedEmptyList, Screen } from '../../components';
 import { useAuth } from '../../context/AuthContext';
-import { useDebouncedValue } from '../../hooks';
+import { useDebouncedValue, triggerViatorInboxRefresh } from '../../hooks';
+import { HeaderRefreshAndSignOut } from '../../navigation/driverChrome';
 import { getAppUiMessage } from '../../lib/apiErrors';
 import { logger } from '../../lib/logger';
 import type { BookingsStackParamList } from '../../navigation/types';
@@ -122,6 +123,7 @@ export function BookingsListScreen() {
     upcoming: emptySection(),
   });
   const [refreshing, setRefreshing] = useState(false);
+  const [headerRefreshing, setHeaderRefreshing] = useState(false);
   const [bookingRefQuery, setBookingRefQuery] = useState('');
   const debouncedBookingRefQuery = useDebouncedValue(bookingRefQuery, BOOKING_REF_DEBOUNCE_MS);
   const [filterDate, setFilterDate] = useState<Date | null>(null);
@@ -348,13 +350,40 @@ export function BookingsListScreen() {
     }, [refreshScope, scrollListTop]),
   );
 
+  const runFullRefresh = useCallback(async () => {
+    const scope = activeRef.current;
+    await Promise.all([triggerViatorInboxRefresh(), refreshScope(scope)]);
+    scrollListTop();
+  }, [refreshScope, scrollListTop]);
+
+  const onHeaderRefresh = useCallback(() => {
+    setHeaderRefreshing(true);
+    setRefreshing(true);
+    void runFullRefresh().finally(() => {
+      setHeaderRefreshing(false);
+      setRefreshing(false);
+    });
+  }, [runFullRefresh]);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <HeaderRefreshAndSignOut
+          onRefresh={onHeaderRefresh}
+          refreshing={headerRefreshing}
+        />
+      ),
+    });
+  }, [navigation, onHeaderRefresh, headerRefreshing]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    const scope = activeRef.current;
-    await refreshScope(scope);
-    scrollListTop();
-    setRefreshing(false);
-  }, [refreshScope, scrollListTop]);
+    try {
+      await runFullRefresh();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [runFullRefresh]);
 
   const onEndReached = useCallback(() => {
     void loadNextPage(activeRef.current);

@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+let viatorRefreshHandler: (() => Promise<void>) | null = null;
+
+/** Called from header refresh; wired by {@link useViatorNotifications} in the listener. */
+export function triggerViatorInboxRefresh(): Promise<void> {
+  return viatorRefreshHandler?.() ?? Promise.resolve();
+}
+
 import { useAuth } from '../context/AuthContext';
 import { isViatorTestNotification } from '../lib/isViatorTestNotification';
 import { logger } from '../lib/logger';
@@ -106,6 +113,15 @@ export function useViatorNotifications(options?: { enabled?: boolean }) {
     }
     setLoading(true);
     try {
+      try {
+        const check = await viatorNotificationsApi.checkInbox();
+        if (check.accepted) {
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+        }
+      } catch (e) {
+        logger.warn('useViatorNotifications: inbox check failed', e);
+      }
+
       const list = await viatorNotificationsApi.list(accessToken, { limit: 10 });
       let merged: ViatorNotification[] = [];
       setUnread((prev) => {
@@ -121,6 +137,15 @@ export function useViatorNotifications(options?: { enabled?: boolean }) {
       setLoading(false);
     }
   }, [accessToken, pushAlertsForNew]);
+
+  useEffect(() => {
+    viatorRefreshHandler = refresh;
+    return () => {
+      if (viatorRefreshHandler === refresh) {
+        viatorRefreshHandler = null;
+      }
+    };
+  }, [refresh]);
 
   const dismiss = useCallback(
     async (id: string) => {

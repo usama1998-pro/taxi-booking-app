@@ -5,7 +5,6 @@ import {
   brandBlue,
   brandDisplayName,
   HeaderBackToHomeButton,
-  HeaderSignOutButton,
 } from './driverChrome';
 import type { BookingsStackParamList } from './types';
 
@@ -26,6 +25,5 @@ export function bookingsListScreenOptions({ navigation }: { navigation: Nav }) {
       fontSize: 18,
     },
     headerLeft: () => <HeaderBackToHomeButton navigation={navigation} />,
-    headerRight: () => <HeaderSignOutButton />,
   };
 }

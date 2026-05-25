@@ -632,7 +632,7 @@ export function BookingsListScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={brandBlue} />
           }
           onEndReached={onEndReached}
-          onEndReachedThreshold={0.35}
+          onEndReachedThreshold={1}
           ListFooterComponent={listFooter}
           ListEmptyComponent={
             section.loading ? (
@@ -876,17 +876,17 @@ const styles = StyleSheet.create({
   },
   dateHeader: {
     backgroundColor: '#757575',
-    paddingVertical: 8,
-    paddingHorizontal: spacing.md,
-    marginTop: spacing.xs,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.sm,
+    marginTop: 2,
   },
   dateHeaderText: {
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: 16,
   },
   listPadBottom: {
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.sm,
     flexGrow: 1,
   },
   footerLoader: {

@@ -4,15 +4,15 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   bookingChildSeatsSummary,
   bookingFlightLine,
-  bookingFromDisplay,
+  bookingFromDisplayForList,
   bookingPassengerLabel,
   bookingSourceIcon,
-  bookingToDisplay,
+  bookingToDisplayForList,
   isViatorEmailBooking,
 } from '../../lib/bookingFormat';
 import type { Booking } from '../../types/booking';
 import { BOOKING_TIME_ZONE } from '../../constants/timeZone';
-import { spacing, typography } from '../../theme';
+import { spacing } from '../../theme';
 
 const brandBlue = '#1E88E5';
 const actionGrey = '#9E9E9E';
@@ -84,7 +84,7 @@ export function MyReservationsCard({
               </Text>
               <Ionicons
                 name={sourceIcon}
-                size={22}
+                size={24}
                 color={sourceIconColor}
                 accessibilityLabel={
                   viatorMail ? 'Viator email booking' : 'App booking'
@@ -92,21 +92,25 @@ export function MyReservationsCard({
               />
             </View>
             <View style={styles.routeLine}>
-              <Text style={styles.routePrefix}>From : </Text>
-              <Text style={styles.routeValue}>{bookingFromDisplay(booking)}</Text>
+              <Text style={styles.routeLineText} numberOfLines={2} ellipsizeMode="tail">
+                <Text style={styles.routePrefix}>From : </Text>
+                <Text style={styles.routeValueInline}>{bookingFromDisplayForList(booking)}</Text>
+              </Text>
             </View>
             <View style={styles.routeLine}>
-              <Text style={styles.routePrefix}>To : </Text>
-              <Text style={styles.routeValue}>{bookingToDisplay(booking)}</Text>
+              <Text style={styles.routeLineText} numberOfLines={2} ellipsizeMode="tail">
+                <Text style={styles.routePrefix}>To : </Text>
+                <Text style={styles.routeValueInline}>{bookingToDisplayForList(booking)}</Text>
+              </Text>
             </View>
             <View style={styles.metaRow}>
               <View style={styles.metaCluster}>
-                <Ionicons name="person-outline" size={18} color="#424242" />
+                <Ionicons name="person-outline" size={20} color="#424242" />
                 <Text style={styles.metaText}>{booking.passengerCount}</Text>
               </View>
               {flight ? (
                 <View style={styles.flightCluster}>
-                  <Ionicons name="airplane-outline" size={18} color="#424242" />
+                  <Ionicons name="airplane-outline" size={20} color="#424242" />
                   <View style={styles.flightTextCol}>
                     <Text style={styles.flightNo}>{flight.flight}</Text>
                     {flight.airline ? <Text style={styles.airline}>{flight.airline}</Text> : null}
@@ -170,8 +174,9 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#BDBDBD',
-    marginBottom: spacing.md,
-    padding: spacing.md,
+    marginBottom: spacing.sm,
+    padding: spacing.sm,
+    overflow: 'hidden',
   },
   cardMainPressable: {
     borderRadius: 2,
@@ -189,13 +194,13 @@ const styles = StyleSheet.create({
   },
   timeBox: {
     backgroundColor: timeBoxGrey,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
     borderRadius: 4,
-    marginRight: spacing.sm,
+    marginRight: spacing.xs,
   },
   timeText: {
-    ...typography.subtitle,
+    fontSize: 20,
     fontWeight: '700',
     color: '#424242',
     fontVariant: ['tabular-nums'],
@@ -208,41 +213,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: spacing.sm,
-    marginBottom: spacing.xs,
+    gap: spacing.xs,
+    marginBottom: 2,
   },
   customerName: {
-    ...typography.subtitle,
+    fontSize: 20,
     fontWeight: '700',
     color: '#000000',
     flex: 1,
   },
   routeLine: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'flex-start',
-    marginBottom: 4,
+    marginBottom: 2,
+    width: '100%',
+  },
+  routeLineText: {
+    fontSize: 16,
+    lineHeight: 22,
+    color: '#424242',
   },
   routePrefix: {
-    fontSize: 14,
     fontWeight: '600',
     color: '#212121',
-    lineHeight: 20,
   },
-  routeValue: {
-    flex: 1,
-    fontSize: 14,
+  routeValueInline: {
     fontWeight: '400',
     color: '#424242',
-    lineHeight: 20,
-    flexShrink: 1,
   },
   metaRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
-    gap: spacing.md,
-    marginTop: spacing.sm,
+    gap: spacing.sm,
+    marginTop: spacing.xs,
   },
   metaCluster: {
     flexDirection: 'row',
@@ -250,7 +252,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   metaText: {
-    ...typography.body,
+    fontSize: 17,
     fontWeight: '600',
     color: '#212121',
   },
@@ -263,33 +265,33 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   flightNo: {
-    ...typography.body,
+    fontSize: 17,
     fontWeight: '700',
     color: '#212121',
   },
   airline: {
-    ...typography.caption,
+    fontSize: 15,
     color: '#616161',
     marginTop: 1,
   },
   childSeats: {
-    ...typography.caption,
+    fontSize: 15,
     color: '#616161',
-    marginTop: spacing.xs,
+    marginTop: 2,
   },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    marginTop: spacing.md,
-    paddingTop: spacing.sm,
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+    paddingTop: spacing.xs,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#E0E0E0',
   },
   btnBlue: {
     backgroundColor: brandBlue,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     borderRadius: 4,
     minWidth: 56,
     alignItems: 'center',
@@ -298,29 +300,29 @@ const styles = StyleSheet.create({
   btnBlueText: {
     color: '#FFFFFF',
     fontWeight: '800',
-    fontSize: 14,
+    fontSize: 15,
     letterSpacing: 0.3,
   },
   btnGrey: {
     backgroundColor: actionGrey,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     borderRadius: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
   btnRed: {
     backgroundColor: actionRed,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     borderRadius: 4,
     alignItems: 'center',
     justifyContent: 'center',
   },
   btnGreen: {
     backgroundColor: actionGreen,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     borderRadius: 4,
     alignItems: 'center',
     justifyContent: 'center',

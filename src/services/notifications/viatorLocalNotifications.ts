@@ -59,17 +59,20 @@ export async function ensureNotificationPermissions(): Promise<boolean> {
   return requested.granted;
 }
 
-function buildContent(item: {
-  viatorReference: string;
-  pickupDateLabel: string;
-  isTestBooking?: boolean;
-}): Notifications.NotificationContentInput {
+function buildContent(
+  item: ViatorBookingInfo & {
+    viatorReference: string;
+    pickupDateLabel: string;
+    isTestBooking?: boolean;
+  },
+): Notifications.NotificationContentInput {
   const title = item.isTestBooking
     ? 'Viator test booking'
     : 'New Viator booking';
+  const body = formatViatorNotificationBody(item);
   return {
     title,
-    body: `${item.viatorReference} — ${item.pickupDateLabel}`,
+    body: body || `${item.viatorReference} — ${item.pickupDateLabel}`,
     data: {
       viatorReference: item.viatorReference,
       type: item.isTestBooking ? 'viator-test-booking' : 'viator-booking',

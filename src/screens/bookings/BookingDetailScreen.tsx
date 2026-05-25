@@ -29,6 +29,7 @@ import {
   bookingFromDisplay,
   bookingPassengerLabel,
   bookingToDisplay,
+  isPickupAirportBooking,
   isViatorEmailBooking,
   pickupArrivalAirline,
   pickupArrivalFlight,
@@ -39,7 +40,7 @@ import { phoneForDisplay } from '../../lib/phoneFormat';
 import type { BookingDetailHostStackParamList } from '../../navigation/types';
 import { bookingsApi } from '../../services/bookings/bookingsApi';
 import type { Booking } from '../../types/booking';
-import { colors, spacing, typography } from '../../theme';
+import { colors, spacing } from '../../theme';
 
 type BookingDetailParams = { BookingDetail: { uuid: string } };
 
@@ -48,8 +49,8 @@ const HEADER_BLUE = '#2196F3';
 const ICON_BLACK = '#111827';
 const FOOTER_MUTED = '#9CA3AF';
 const SITE_URL = 'https://www.taxibarcelona24.com';
-const ICON_SIZE = 20;
-const HEADER_ICON_SIZE = 22;
+const ICON_SIZE = 22;
+const HEADER_ICON_SIZE = 24;
 const QR_PX = 76;
 
 function notifyCopiedAndroid() {
@@ -428,16 +429,21 @@ export function BookingDetailScreen() {
                 <InfoRow label="Passengers" value={String(b.passengerCount)} />
                 <InfoRow label="Pickup Date" value={formatPickupDate(b.scheduledTime)} />
                 <InfoRow label="Pickup Time" value={formatPickupTime(b.scheduledTime)} />
-                <InfoRow label="Arrival airline" value={pickupArrivalAirline(b) ?? '—'} />
-                <InfoRow label="Arrival flight" value={pickupArrivalFlight(b) ?? '—'} />
-                <InfoRow
-                  label="Arrival time"
-                  value={
-                    b.scheduledTime
-                      ? `${formatPickupDate(b.scheduledTime)} · ${formatPickupTime(b.scheduledTime)}`
-                      : '—'
-                  }
-                />
+                {isPickupAirportBooking(b) ? (
+                  <>
+                    <InfoRow label="Arrival airline" value={pickupArrivalAirline(b) ?? '—'} />
+                    <InfoRow label="Arrival flight" value={pickupArrivalFlight(b) ?? '—'} />
+                    <InfoRow
+                      label="Arrival time"
+                      value={
+                        b.scheduledTime
+                          ? `${formatPickupDate(b.scheduledTime)} · ${formatPickupTime(b.scheduledTime)}`
+                          : '—'
+                      }
+                    />
+                  </>
+                ) : null}
+                <InfoRow label="Notes" value={b.note?.trim() || 'No'} />
               </Section>
 
               <Section title="Dropoff Information">
@@ -490,12 +496,7 @@ export function BookingDetailScreen() {
                 />
               </Section>
 
-              {b.note?.trim() ? (
-                <View style={styles.noteWrap}>
-                  <Text style={styles.noteLabel}>Note</Text>
-                  <Text style={styles.noteBody}>{b.note.trim()}</Text>
-                </View>
-              ) : null}
+
             </View>
 
             <View style={styles.footer}>
@@ -647,7 +648,7 @@ function PhoneRow({
           accessibilityLabel="Call customer"
           style={styles.phoneCircle}
         >
-          <Ionicons name="call" size={16} color="#FFFFFF" />
+          <Ionicons name="call" size={18} color="#FFFFFF" />
         </Pressable>
         <Text style={styles.infoValueFlex} selectable>
           {phone}
@@ -704,7 +705,7 @@ function BookingRefRow({ reference, onCopy }: { reference: string; onCopy: () =>
 
   return (
     <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>Ref</Text>
+      <Text style={styles.infoLabel}>Booking Ref</Text>
       <View style={styles.valueWithIcons}>
         <Text style={styles.infoValueFlex} selectable>
           {reference}
@@ -721,7 +722,7 @@ function BookingRefRow({ reference, onCopy }: { reference: string; onCopy: () =>
         >
           <Ionicons
             name={showTick ? 'checkmark-circle' : 'copy-outline'}
-            size={22}
+            size={24}
             color={showTick ? colors.success : ICON_BLACK}
           />
         </Pressable>
@@ -785,14 +786,14 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 13,
+    fontSize: 15,
   },
   headerBrand: {
     flex: 1,
     textAlign: 'center',
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: 16,
     letterSpacing: 0.4,
     paddingHorizontal: 4,
   },
@@ -808,13 +809,13 @@ const styles = StyleSheet.create({
   },
   sectionBar: {
     backgroundColor: HEADER_BLUE,
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: spacing.md,
   },
   sectionBarText: {
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: 17,
   },
   sectionBody: {
     backgroundColor: colors.background,
@@ -824,7 +825,7 @@ const styles = StyleSheet.create({
   infoRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
@@ -832,24 +833,24 @@ const styles = StyleSheet.create({
     width: '38%',
     paddingRight: spacing.sm,
     fontWeight: '700',
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 16,
+    lineHeight: 22,
     color: ICON_BLACK,
   },
   infoValue: {
     flex: 1,
     flexShrink: 1,
-    fontSize: 13,
+    fontSize: 16,
     fontWeight: '400',
     color: ICON_BLACK,
-    lineHeight: 18,
+    lineHeight: 22,
   },
   infoValueFlex: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 16,
     fontWeight: '400',
     color: ICON_BLACK,
-    lineHeight: 18,
+    lineHeight: 22,
     minWidth: 0,
   },
   valueWithIcons: {
@@ -870,26 +871,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  noteWrap: {
-    marginHorizontal: spacing.md,
-    marginTop: spacing.sm,
-    padding: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  noteLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.primaryMuted,
-    marginBottom: spacing.xs,
-  },
-  noteBody: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.primary,
-  },
+
   footer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -911,14 +893,14 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   footerSite: {
-    fontSize: 12,
+    fontSize: 14,
     color: FOOTER_MUTED,
     textAlign: 'center',
   },
   footerTime: {
-    fontSize: 11,
+    fontSize: 13,
     color: FOOTER_MUTED,
     flexShrink: 0,
   },
-  error: { ...typography.body, color: colors.danger },
+  error: { fontSize: 17, color: colors.danger },
 });

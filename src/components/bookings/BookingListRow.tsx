@@ -3,9 +3,9 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   bookingChildSeatsSummary,
-  bookingDropoffLabel,
+  bookingFromDisplayForList,
   bookingPassengerLabel,
-  bookingPickupLabel,
+  bookingToDisplayForList,
   formatMoney,
 } from '../../lib/bookingFormat';
 import type { Booking } from '../../types/booking';
@@ -52,8 +52,8 @@ export function BookingListRow({ booking, onPress, onPassengerNamePress }: Booki
         <Text style={styles.price}>{formatMoney(booking.price)}</Text>
       </View>
       <Text style={styles.time}>{formatDateShort(booking.scheduledTime)}</Text>
-      <Text style={styles.route} numberOfLines={2}>
-        {bookingPickupLabel(booking)} → {bookingDropoffLabel(booking)}
+      <Text style={styles.route} numberOfLines={2} ellipsizeMode="tail">
+        {bookingFromDisplayForList(booking)} → {bookingToDisplayForList(booking)}
       </Text>
       <View style={styles.footer}>
         <Text style={styles.status}>{booking.status}</Text>

@@ -36,6 +36,11 @@ export function ViatorNotificationBanner({
           {latest.pickupLocation ? (
             <Text style={styles.detail}>Pickup: {latest.pickupLocation}</Text>
           ) : null}
+          {latest.dropoffLocation || latest.cruiseShipName ? (
+            <Text style={styles.detail}>
+              Drop-off: {latest.cruiseShipName?.trim() || latest.dropoffLocation}
+            </Text>
+          ) : null}
           {latest.phone ? (
             <Text style={styles.detail}>{phoneForDisplay(latest.phone)}</Text>
           ) : null}

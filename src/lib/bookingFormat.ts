@@ -68,6 +68,53 @@ function readLocationJson(value: unknown): Record<string, unknown> | null {
   return null;
 }
 
+const LIST_AIRPORT_LABEL = 'Barcelona-El Prat Airport';
+const AIRPORT_TEXT = /airport|aeropuerto|el\s+prat/i;
+
+function locationJsonIsAirport(o: Record<string, unknown> | null): boolean {
+  if (!o) {
+    return false;
+  }
+  if (o.kind === 'airport') {
+    return true;
+  }
+  const label =
+    (typeof o.label === 'string' && o.label) ||
+    (typeof o.address === 'string' && o.address) ||
+    (typeof o.formattedAddress === 'string' && o.formattedAddress) ||
+    '';
+  return AIRPORT_TEXT.test(label);
+}
+
+/** Booking list: any airport-related address → short fixed label (avoids long Viator strings). */
+function shortenAddressForList(text: string): string {
+  const t = text.trim();
+  if (!t) {
+    return t;
+  }
+  if (AIRPORT_TEXT.test(t)) {
+    return LIST_AIRPORT_LABEL;
+  }
+  return t;
+}
+
+function locationDisplayForList(value: unknown, fullDisplay: string): string {
+  if (locationJsonIsAirport(readLocationJson(value))) {
+    return LIST_AIRPORT_LABEL;
+  }
+  return shortenAddressForList(fullDisplay);
+}
+
+/** "From :" line on booking list cards (short airport label). */
+export function bookingFromDisplayForList(b: Booking): string {
+  return locationDisplayForList(b.pickupLocation, bookingFromDisplay(b));
+}
+
+/** "To :" line on booking list cards (short airport label). */
+export function bookingToDisplayForList(b: Booking): string {
+  return locationDisplayForList(b.dropoffLocation, bookingToDisplay(b));
+}
+
 /** Pickup is Barcelona airport (inbound flight / meet‑and‑greet fields on JSON). */
 export function isPickupAirportBooking(b: Booking): boolean {
   return readLocationJson(b.pickupLocation)?.kind === 'airport';

@@ -18,13 +18,18 @@ export type ViatorBookingInfo = {
   email?: string;
   pickupLocation?: string;
   dropoffLocation?: string;
+  cruiseShipName?: string;
   travelers?: string;
   language?: string;
   specialRequirements?: string;
   arrivalFlightNo?: string;
   arrivalTime?: string;
   arrivalAirline?: string;
+  departureFlightNo?: string;
+  departureTime?: string;
+  departureAirline?: string;
   tourGrade?: string;
+  productCode?: string;
   emailText?: string;
   found?: boolean;
   message?: string;
@@ -39,6 +44,13 @@ function pushRow(
   if (v) {
     rows.push({ label, value: v });
   }
+}
+
+function cruiseShipOrFallback(
+  ship: string | undefined,
+  fallback: string | undefined,
+): string | undefined {
+  return ship?.trim() || fallback;
 }
 
 export function buildViatorBookingDetailRows(
@@ -58,15 +70,31 @@ export function buildViatorBookingDetailRows(
   pushRow(rows, 'Party size', info.travelers);
   pushRow(rows, 'Phone', info.phone);
   pushRow(rows, 'Pickup', info.pickupLocation);
-  pushRow(rows, 'Drop-off', info.dropoffLocation);
 
-  const flightParts = [
+  const dropoff = cruiseShipOrFallback(info.cruiseShipName, info.dropoffLocation)
+    ?? info.dropoffLocation;
+  pushRow(rows, 'Drop-off', dropoff);
+
+  if (info.cruiseShipName?.trim()) {
+    pushRow(rows, 'Cruise ship', info.cruiseShipName);
+  }
+
+  const arrivalParts = [
     info.arrivalAirline,
     info.arrivalFlightNo ? `flight ${info.arrivalFlightNo}` : undefined,
     info.arrivalTime,
   ].filter(Boolean);
-  if (flightParts.length > 0) {
-    pushRow(rows, 'Arrival', flightParts.join(' · '));
+  if (arrivalParts.length > 0) {
+    pushRow(rows, 'Arrival', arrivalParts.join(' · '));
+  }
+
+  const departureParts = [
+    info.departureAirline,
+    info.departureFlightNo ? `flight ${info.departureFlightNo}` : undefined,
+    info.departureTime,
+  ].filter(Boolean);
+  if (departureParts.length > 0) {
+    pushRow(rows, 'Departure', departureParts.join(' · '));
   }
 
   pushRow(rows, 'Language', info.language);
@@ -107,6 +135,11 @@ export function formatViatorNotificationBody(info: ViatorBookingInfo): string {
   }
   if (info.pickupLocation) {
     parts.push(`Pickup: ${info.pickupLocation}`);
+  }
+  const dropoff = cruiseShipOrFallback(info.cruiseShipName, info.dropoffLocation)
+    ?? info.dropoffLocation;
+  if (dropoff) {
+    parts.push(`Drop-off: ${dropoff}`);
   }
   if (info.phone) {
     parts.push(phoneForDisplay(info.phone));

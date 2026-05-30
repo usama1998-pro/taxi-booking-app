@@ -22,6 +22,8 @@ export const bookingsApi = {
       page?: number;
       pageSize?: number;
       timeScope?: BookingListTimeScope;
+      /** Pickup calendar day in server TZ (`YYYY-MM-DD`). */
+      scheduledOn?: string;
     } = {},
   ): Promise<PaginatedBookings> {
     const page = params.page ?? 1;
@@ -32,6 +34,9 @@ export const bookingsApi = {
     });
     if (params.timeScope) {
       q.set('timeScope', params.timeScope);
+    }
+    if (params.scheduledOn) {
+      q.set('scheduledOn', params.scheduledOn);
     }
     return apiGetJson<PaginatedBookings>(`/bookings?${q.toString()}`, token);
   },

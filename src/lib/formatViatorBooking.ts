@@ -23,7 +23,6 @@ export type ViatorBookingInfo = {
   language?: string;
   specialRequirements?: string;
   arrivalFlightNo?: string;
-  arrivalTime?: string;
   arrivalAirline?: string;
   departureFlightNo?: string;
   departureTime?: string;
@@ -82,7 +81,6 @@ export function buildViatorBookingDetailRows(
   const arrivalParts = [
     info.arrivalAirline,
     info.arrivalFlightNo ? `flight ${info.arrivalFlightNo}` : undefined,
-    info.arrivalTime,
   ].filter(Boolean);
   if (arrivalParts.length > 0) {
     pushRow(rows, 'Arrival', arrivalParts.join(' · '));

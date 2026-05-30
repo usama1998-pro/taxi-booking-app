@@ -105,12 +105,12 @@ export function MyReservationsCard({
             </View>
             <View style={styles.metaRow}>
               <View style={styles.metaCluster}>
-                <Ionicons name="person-outline" size={20} color="#424242" />
+                <Ionicons name="person" size={20} color="#424242" />
                 <Text style={styles.metaText}>{booking.passengerCount}</Text>
               </View>
               {flight ? (
                 <View style={styles.flightCluster}>
-                  <Ionicons name="airplane-outline" size={20} color="#424242" />
+                  <Ionicons name="airplane" size={20} color="#424242" />
                   <View style={styles.flightTextCol}>
                     <Text style={styles.flightNo}>{flight.flight}</Text>
                     {flight.airline ? <Text style={styles.airline}>{flight.airline}</Text> : null}
@@ -151,7 +151,7 @@ export function MyReservationsCard({
           onPress={onDelete}
           style={({ pressed }) => [styles.btnRed, pressed && styles.pressed]}
         >
-          <Ionicons name="trash-outline" size={18} color="#FFFFFF" />
+          <Ionicons name="trash" size={18} color="#FFFFFF" />
         </Pressable>
         {showCompleteButton && !isClosed ? (
           <Pressable

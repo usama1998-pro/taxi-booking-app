@@ -41,7 +41,7 @@ export function BookingListRow({ booking, onPress, onPassengerNamePress }: Booki
               accessibilityLabel="Show pickup sign with passenger name"
               style={({ pressed }) => [styles.eyeBtn, pressed && styles.eyeBtnPressed]}
             >
-              <Ionicons name="eye-outline" size={22} color={colors.accent} />
+              <Ionicons name="eye" size={22} color={colors.accent} />
             </Pressable>
           </View>
         ) : (

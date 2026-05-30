@@ -29,6 +29,8 @@ import {
   bookingFromDisplay,
   bookingPassengerLabel,
   bookingToDisplay,
+  dropoffReturnFlightInfo,
+  isDropoffAirportBooking,
   isPickupAirportBooking,
   isViatorEmailBooking,
   pickupArrivalAirline,
@@ -48,7 +50,7 @@ const COPY_TICK_MS = 1600;
 const HEADER_BLUE = '#2196F3';
 const ICON_BLACK = '#111827';
 const FOOTER_MUTED = '#9CA3AF';
-const SITE_URL = 'https://www.taxibarcelona24.com';
+const SITE_URL = 'https://barcelonataxi24.com/';
 const ICON_SIZE = 22;
 const HEADER_ICON_SIZE = 24;
 const QR_PX = 76;
@@ -154,9 +156,14 @@ function formatFooterTimestamp(d: Date): string {
   return `${day}-${month}-${y} ${h}:${min}`;
 }
 
-function smsUrl(phone: string): string {
+function whatsappUrl(phone: string): string {
   const core = phone.replace(/[^\d+]/g, '');
-  return `sms:${core}`;
+  const digitsOnly = core.replace(/[^\d]/g, '');
+  return `https://wa.me/${digitsOnly}`;
+}
+
+function googleMapsSearchUrl(query: string): string {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
 export function BookingDetailScreen() {
@@ -353,12 +360,14 @@ export function BookingDetailScreen() {
     if (!displayPhone) {
       return;
     }
-    void Linking.openURL(smsUrl(displayPhone));
+    void Linking.openURL(whatsappUrl(displayPhone));
   };
 
   const scrollMinHeight = windowHeight - insets.bottom;
 
   const bodyMinHeight = scrollMinHeight - insets.top - 48;
+  const dropoffAddress = bookingToDisplay(b);
+  const dropoffFlightInfo = dropoffReturnFlightInfo(b);
 
   return (
     <View style={styles.root}>
@@ -384,7 +393,7 @@ export function BookingDetailScreen() {
               </Text>
               {viatorMail ? (
                 <Ionicons
-                  name="mail-outline"
+                  name="mail"
                   size={HEADER_ICON_SIZE}
                   color="#FFFFFF"
                   accessibilityLabel="Viator email booking"
@@ -406,7 +415,7 @@ export function BookingDetailScreen() {
                 {savingScreenshot ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Ionicons name="camera-outline" size={HEADER_ICON_SIZE} color="#FFFFFF" />
+                  <Ionicons name="camera" size={HEADER_ICON_SIZE} color="#FFFFFF" />
                 )}
               </Pressable>
               <Pressable
@@ -433,21 +442,37 @@ export function BookingDetailScreen() {
                   <>
                     <InfoRow label="Arrival airline" value={pickupArrivalAirline(b) ?? '—'} />
                     <InfoRow label="Arrival flight" value={pickupArrivalFlight(b) ?? '—'} />
-                    <InfoRow
-                      label="Arrival time"
-                      value={
-                        b.scheduledTime
-                          ? `${formatPickupDate(b.scheduledTime)} · ${formatPickupTime(b.scheduledTime)}`
-                          : '—'
-                      }
-                    />
                   </>
                 ) : null}
                 <InfoRow label="Notes" value={b.note?.trim() || 'No'} />
               </Section>
 
               <Section title="Dropoff Information">
-                <InfoRow label="Dropoff Address" value={bookingToDisplay(b)} />
+                <InfoRow
+                  label="Dropoff Address"
+                  value={dropoffAddress}
+                  onPress={
+                    dropoffAddress && dropoffAddress !== '—'
+                      ? () => {
+                        void Linking.openURL(googleMapsSearchUrl(dropoffAddress));
+                      }
+                      : undefined
+                  }
+                />
+                {isDropoffAirportBooking(b) ? (
+                  <>
+                    <InfoRow label="Departure airline" value={dropoffFlightInfo?.airline ?? '—'} />
+                    <InfoRow label="Departure flight" value={dropoffFlightInfo?.flight ?? '—'} />
+                    <InfoRow
+                      label="Departure time"
+                      value={
+                        dropoffFlightInfo?.returnTimeIso
+                          ? `${formatReturnDate(dropoffFlightInfo.returnTimeIso)} · ${formatReturnTime(dropoffFlightInfo.returnTimeIso)}`
+                          : '—'
+                      }
+                    />
+                  </>
+                ) : null}
               </Section>
 
               <Section title="Customer Information">
@@ -524,12 +549,33 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.infoRow}>
+function InfoRow({
+  label,
+  value,
+  onPress,
+}: {
+  label: string;
+  value: string;
+  onPress?: () => void;
+}) {
+  const content = (
+    <>
       <Text style={styles.infoLabel}>{label}</Text>
       <Text style={styles.infoValue}>{value}</Text>
-    </View>
+    </>
+  );
+  if (!onPress) {
+    return <View style={styles.infoRow}>{content}</View>;
+  }
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.infoRow, pressed ? styles.infoRowPressed : null]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}. Open in Google Maps`}
+    >
+      {content}
+    </Pressable>
   );
 }
 
@@ -572,7 +618,7 @@ function CustomerNameRow({
         </Text>
         {showViatorMail ? (
           <Ionicons
-            name="mail-outline"
+            name="mail"
             size={ICON_SIZE}
             color={HEADER_BLUE}
             accessibilityLabel="Viator email booking"
@@ -585,7 +631,7 @@ function CustomerNameRow({
           accessibilityLabel="Show pickup sign with customer name"
           style={styles.iconBtn}
         >
-          <Ionicons name="eye-outline" size={ICON_SIZE} color={ICON_BLACK} />
+          <Ionicons name="eye" size={ICON_SIZE} color={ICON_BLACK} />
         </Pressable>
         <Pressable
           onPress={async () => {
@@ -598,7 +644,7 @@ function CustomerNameRow({
           style={styles.iconBtn}
         >
           <Ionicons
-            name={showTick ? 'checkmark-circle' : 'copy-outline'}
+            name={showTick ? 'checkmark-circle' : 'copy'}
             size={ICON_SIZE}
             color={showTick ? colors.success : ICON_BLACK}
           />
@@ -657,10 +703,10 @@ function PhoneRow({
           onPress={onMessage}
           hitSlop={10}
           accessibilityRole="button"
-          accessibilityLabel="Message customer"
+          accessibilityLabel="Message customer on WhatsApp"
           style={styles.iconBtn}
         >
-          <Ionicons name="chatbubble-outline" size={ICON_SIZE} color={ICON_BLACK} />
+          <Ionicons name="logo-whatsapp" size={ICON_SIZE} color={ICON_BLACK} />
         </Pressable>
         <Pressable
           onPress={async () => {
@@ -673,7 +719,7 @@ function PhoneRow({
           style={styles.iconBtn}
         >
           <Ionicons
-            name={showTick ? 'checkmark-circle' : 'copy-outline'}
+            name={showTick ? 'checkmark-circle' : 'copy'}
             size={ICON_SIZE}
             color={showTick ? colors.success : ICON_BLACK}
           />
@@ -721,7 +767,7 @@ function BookingRefRow({ reference, onCopy }: { reference: string; onCopy: () =>
           style={styles.iconBtn}
         >
           <Ionicons
-            name={showTick ? 'checkmark-circle' : 'copy-outline'}
+            name={showTick ? 'checkmark-circle' : 'copy'}
             size={24}
             color={showTick ? colors.success : ICON_BLACK}
           />
@@ -828,6 +874,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
+  },
+  infoRowPressed: {
+    opacity: 0.7,
   },
   infoLabel: {
     width: '38%',

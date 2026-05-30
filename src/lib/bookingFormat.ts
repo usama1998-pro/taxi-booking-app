@@ -58,6 +58,9 @@ export function bookingFromDisplay(b: Booking): string {
 
 /** "To :" line */
 export function bookingToDisplay(b: Booking): string {
+  if (locationJsonIsAirport(readLocationJson(b.dropoffLocation))) {
+    return SHORT_AIRPORT_LABEL;
+  }
   return bookingDropoffLabel(b);
 }
 
@@ -68,7 +71,7 @@ function readLocationJson(value: unknown): Record<string, unknown> | null {
   return null;
 }
 
-const LIST_AIRPORT_LABEL = 'Barcelona-El Prat Airport';
+const SHORT_AIRPORT_LABEL = 'Barcelona Airport';
 const AIRPORT_TEXT = /airport|aeropuerto|el\s+prat/i;
 
 function locationJsonIsAirport(o: Record<string, unknown> | null): boolean {
@@ -93,14 +96,14 @@ function shortenAddressForList(text: string): string {
     return t;
   }
   if (AIRPORT_TEXT.test(t)) {
-    return LIST_AIRPORT_LABEL;
+    return SHORT_AIRPORT_LABEL;
   }
   return t;
 }
 
 function locationDisplayForList(value: unknown, fullDisplay: string): string {
   if (locationJsonIsAirport(readLocationJson(value))) {
-    return LIST_AIRPORT_LABEL;
+    return SHORT_AIRPORT_LABEL;
   }
   return shortenAddressForList(fullDisplay);
 }
@@ -118,6 +121,11 @@ export function bookingToDisplayForList(b: Booking): string {
 /** Pickup is Barcelona airport (inbound flight / meet‑and‑greet fields on JSON). */
 export function isPickupAirportBooking(b: Booking): boolean {
   return readLocationJson(b.pickupLocation)?.kind === 'airport';
+}
+
+/** Drop-off is Barcelona airport (outbound flight fields on JSON). */
+export function isDropoffAirportBooking(b: Booking): boolean {
+  return readLocationJson(b.dropoffLocation)?.kind === 'airport';
 }
 
 /** Airline on airport pickup JSON (`pickupLocation.airline`), when set. */
@@ -198,15 +206,15 @@ export function isViatorEmailBooking(b: Booking): boolean {
 }
 
 /** App (manual) vs Viator email booking icon on list cards. */
-export function bookingSourceIcon(b: Booking): 'phone-portrait-outline' | 'mail-outline' {
+export function bookingSourceIcon(b: Booking): 'phone-portrait' | 'mail' {
   if (isViatorEmailBooking(b)) {
-    return 'mail-outline';
+    return 'mail';
   }
   const email = (b.customerEmail || b.user?.email || '').toLowerCase();
   if (email.includes('@taxibarcelona24.guest')) {
-    return 'phone-portrait-outline';
+    return 'phone-portrait';
   }
-  return 'mail-outline';
+  return 'mail';
 }
 
 export function bookingPassengerLabel(b: Booking): string {

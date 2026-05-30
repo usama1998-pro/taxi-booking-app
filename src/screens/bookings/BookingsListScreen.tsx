@@ -27,6 +27,10 @@ import { useAuth } from '../../context/AuthContext';
 import { useDebouncedValue, triggerViatorInboxRefresh } from '../../hooks';
 import { HeaderRefreshAndSignOut } from '../../navigation/driverChrome';
 import { getAppUiMessage } from '../../lib/apiErrors';
+import {
+  bookingDayKeyFromDate,
+  bookingDayKeyFromIso,
+} from '../../lib/bookingDayKey';
 import { logger } from '../../lib/logger';
 import type { BookingsStackParamList } from '../../navigation/types';
 import { bookingsApi } from '../../services/bookings/bookingsApi';
@@ -38,6 +42,7 @@ import type { Booking, BookingListTimeScope } from '../../types/booking';
 import { colors, spacing, typography } from '../../theme';
 
 const PAGE_SIZE = 25;
+const DATE_FILTER_PAGE_SIZE = 100;
 
 const BOOKING_REF_DEBOUNCE_MS = 300;
 
@@ -73,19 +78,6 @@ function emptySection(): SectionState {
     error: null,
     loadMoreError: null,
   };
-}
-
-function pad2(n: number): string {
-  return String(n).padStart(2, '0');
-}
-
-function localDayKeyFromIso(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
-
-function localDayKeyFromDate(d: Date): string {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
 function formatSectionTitle(dayKey: string): string {
@@ -138,6 +130,15 @@ export function BookingsListScreen() {
   activeRef.current = active;
   const byScopeRef = useRef(byScope);
   byScopeRef.current = byScope;
+  const filterDateRef = useRef(filterDate);
+  filterDateRef.current = filterDate;
+
+  const scheduledOnForScope = useCallback((scope: BookingListTimeScope): string | undefined => {
+    if (scope === 'current' || !filterDateRef.current) {
+      return undefined;
+    }
+    return bookingDayKeyFromDate(filterDateRef.current);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -222,10 +223,12 @@ export function BookingsListScreen() {
         },
       }));
       try {
+        const scheduledOn = scheduledOnForScope(scope);
         const res = await bookingsApi.list(accessToken, {
           page: 1,
-          pageSize: PAGE_SIZE,
+          pageSize: scheduledOn ? DATE_FILTER_PAGE_SIZE : PAGE_SIZE,
           timeScope: scope,
+          scheduledOn,
         });
         setByScope((prev) => ({
           ...prev,
@@ -259,8 +262,15 @@ export function BookingsListScreen() {
         }));
       }
     },
-    [accessToken],
+    [accessToken, scheduledOnForScope],
   );
+
+  useEffect(() => {
+    if (active === 'current') {
+      return;
+    }
+    void refreshScope(active);
+  }, [filterDate, active, refreshScope]);
 
   const loadNextPage = useCallback(
     async (scope: BookingListTimeScope) => {
@@ -286,10 +296,12 @@ export function BookingsListScreen() {
       }));
       try {
         const nextPage = st.page + 1;
+        const scheduledOn = scheduledOnForScope(scope);
         const res = await bookingsApi.list(accessToken, {
           page: nextPage,
-          pageSize: PAGE_SIZE,
+          pageSize: scheduledOn ? DATE_FILTER_PAGE_SIZE : PAGE_SIZE,
           timeScope: scope,
+          scheduledOn,
         });
         setByScope((prev) => {
           const cur = prev[scope];
@@ -329,7 +341,7 @@ export function BookingsListScreen() {
         appendLockRef.current = false;
       }
     },
-    [accessToken],
+    [accessToken, scheduledOnForScope],
   );
 
   const scrollListTop = useCallback(() => {
@@ -401,17 +413,13 @@ export function BookingsListScreen() {
           .includes(q),
       );
     }
-    if (filterDate && active !== 'current') {
-      const fk = localDayKeyFromDate(filterDate);
-      rows = rows.filter((b) => localDayKeyFromIso(b.scheduledTime) === fk);
-    }
     return rows;
-  }, [section.items, debouncedBookingRefQuery, filterDate, active]);
+  }, [section.items, debouncedBookingRefQuery]);
 
   const sections = useMemo((): Section[] => {
     const groups = new Map<string, Booking[]>();
     for (const b of filtered) {
-      const k = localDayKeyFromIso(b.scheduledTime);
+      const k = bookingDayKeyFromIso(b.scheduledTime);
       if (!groups.has(k)) {
         groups.set(k, []);
       }
@@ -438,10 +446,10 @@ export function BookingsListScreen() {
         : 'No reservations from tomorrow onward.';
   const emptyIcon =
     active === 'past'
-      ? 'archive-outline'
+      ? 'archive'
       : active === 'current'
-        ? 'calendar-outline'
-        : 'calendar-outline';
+        ? 'calendar'
+        : 'calendar';
 
   const onDeleteBooking = useCallback(
     (b: Booking) => {
@@ -518,8 +526,11 @@ export function BookingsListScreen() {
     }
     if (selected) {
       setFilterDate(selected);
+      if (Platform.OS === 'android') {
+        void refreshScope(activeRef.current);
+      }
     }
-  }, []);
+  }, [refreshScope]);
 
   const openBookingRefModal = useCallback(() => {
     setBookingRefDraft(bookingRefQuery);
@@ -562,7 +573,7 @@ export function BookingsListScreen() {
           accessibilityRole="button"
           accessibilityLabel="Search by booking reference"
         >
-          <Ionicons name="document-text-outline" size={20} color="#616161" style={styles.searchIcon} />
+          <Ionicons name="document-text" size={20} color="#616161" style={styles.searchIcon} />
           <Text
             numberOfLines={1}
             style={bookingRefQuery.trim() ? styles.searchDateValue : styles.searchDatePlaceholder}
@@ -579,7 +590,7 @@ export function BookingsListScreen() {
 
       {active !== 'current' ? (
         <View style={styles.searchRow}>
-          <Ionicons name="calendar-outline" size={20} color="#616161" style={styles.searchIcon} />
+          <Ionicons name="calendar" size={20} color="#616161" style={styles.searchIcon} />
           <Pressable style={styles.searchDateFlex} onPress={() => setDatePickerVisible(true)}>
             <Text style={filterDate ? styles.searchDateValue : styles.searchDatePlaceholder}>
               {filterDate ? formatFilterDateLabel(filterDate) : 'Search by date'}
@@ -590,6 +601,7 @@ export function BookingsListScreen() {
               onPress={() => {
                 setFilterDate(null);
                 setDatePickerVisible(false);
+                void refreshScope(activeRef.current);
               }}
               hitSlop={8}
             >
@@ -780,7 +792,12 @@ export function BookingsListScreen() {
           />
           {Platform.OS === 'ios' ? (
             <View style={styles.iosPickerBar}>
-              <Pressable onPress={() => setDatePickerVisible(false)}>
+              <Pressable
+                onPress={() => {
+                  setDatePickerVisible(false);
+                  void refreshScope(activeRef.current);
+                }}
+              >
                 <Text style={styles.iosPickerDone}>Done</Text>
               </Pressable>
             </View>

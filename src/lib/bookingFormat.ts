@@ -25,35 +25,38 @@ function formatLocationJson(value: unknown): string {
   }
 }
 
+/** Place name from pickup JSON (`label` / `name` only — matches backend storage). */
+function pickupLocationNameOnly(value: unknown): string {
+  if (value == null) {
+    return '—';
+  }
+  if (typeof value === 'string') {
+    const s = value.trim();
+    return s || '—';
+  }
+  const o = readLocationJson(value);
+  if (o) {
+    const name =
+      (typeof o.label === 'string' && o.label.trim()) ||
+      (typeof o.name === 'string' && o.name.trim());
+    if (name) {
+      return name;
+    }
+  }
+  return '—';
+}
+
 export function bookingPickupLabel(b: Booking): string {
-  return formatLocationJson(b.pickupLocation);
+  return pickupLocationNameOnly(b.pickupLocation);
 }
 
 export function bookingDropoffLabel(b: Booking): string {
   return formatLocationJson(b.dropoffLocation);
 }
 
-/** "From :" line — label plus street/address when stored on JSON. */
+/** Pickup line for drivers — place name only (no meeting point / street suffix). */
 export function bookingFromDisplay(b: Booking): string {
-  const loc = b.pickupLocation;
-  if (typeof loc === 'object' && loc !== null && !Array.isArray(loc)) {
-    const o = loc as Record<string, unknown>;
-    const label =
-      (typeof o.label === 'string' && o.label) ||
-      (typeof o.name === 'string' && o.name) ||
-      (typeof o.formattedAddress === 'string' && o.formattedAddress);
-    const extra =
-      (typeof o.meetingAddress === 'string' && o.meetingAddress.trim()) ||
-      (typeof o.address === 'string' && o.address.trim()) ||
-      (typeof o.street === 'string' && o.street.trim());
-    if (label && extra && !String(label).includes(extra)) {
-      return `${label}, ${extra}`;
-    }
-    if (label) {
-      return String(label);
-    }
-  }
-  return bookingPickupLabel(b);
+  return pickupLocationNameOnly(b.pickupLocation);
 }
 
 /** "To :" line */
@@ -151,10 +154,31 @@ export function pickupArrivalFlight(b: Booking): string | null {
   return fn || null;
 }
 
+function bookingReturnTimeIso(b: Booking): string | null {
+  const raw = b.returnTime;
+  if (raw == null) {
+    return null;
+  }
+  if (typeof raw === 'string') {
+    const s = raw.trim();
+    return s || null;
+  }
+  try {
+    const d = new Date(raw as string | number);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  } catch {
+    return null;
+  }
+}
+
 export type DropoffReturnFlightInfo = {
   airline: string | null;
   flight: string | null;
   returnTimeIso: string | null;
+  /** Raw departure time on dropoff JSON (Viator email), when `returnTime` was not stored. */
+  departureTimeLabel: string | null;
+  /** Travel-day ISO used when `returnTime` is missing (usually same day as pickup). */
+  departureDateIso: string | null;
 };
 
 /**
@@ -165,11 +189,40 @@ export function dropoffReturnFlightInfo(b: Booking): DropoffReturnFlightInfo | n
   const airline =
     typeof o?.airline === 'string' && o.airline.trim() ? o.airline.trim() : null;
   const flight = typeof o?.flight === 'string' && o.flight.trim() ? o.flight.trim() : null;
-  const returnTimeIso = b.returnTime?.trim() ? b.returnTime.trim() : null;
-  if (!airline && !flight && !returnTimeIso) {
+  const returnTimeIso = bookingReturnTimeIso(b);
+  const departureTimeLabel =
+    typeof o?.departureTime === 'string' && o.departureTime.trim()
+      ? o.departureTime.trim()
+      : null;
+  const departureDateIso =
+    returnTimeIso ??
+    (isDropoffAirportBooking(b) && b.scheduledTime?.trim() ? b.scheduledTime.trim() : null);
+  if (!airline && !flight && !returnTimeIso && !departureTimeLabel && !departureDateIso) {
     return null;
   }
-  return { airline, flight, returnTimeIso };
+  return { airline, flight, returnTimeIso, departureTimeLabel, departureDateIso };
+}
+
+export type DropoffDepartureDisplay = {
+  dateIso: string | null;
+  timeIso: string | null;
+  timeLabel: string | null;
+};
+
+/** Departure date/time for airport drop-off rows on the driver detail screen. */
+export function dropoffDepartureDisplay(b: Booking): DropoffDepartureDisplay | null {
+  if (!isDropoffAirportBooking(b)) {
+    return null;
+  }
+  const info = dropoffReturnFlightInfo(b);
+  if (!info) {
+    return null;
+  }
+  return {
+    dateIso: info.returnTimeIso ?? info.departureDateIso,
+    timeIso: info.returnTimeIso,
+    timeLabel: info.returnTimeIso ? null : info.departureTimeLabel,
+  };
 }
 
 export type BookingFlightLine = { flight: string; airline?: string };

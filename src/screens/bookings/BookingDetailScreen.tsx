@@ -29,6 +29,7 @@ import {
   bookingFromDisplay,
   bookingPassengerLabel,
   bookingToDisplay,
+  dropoffDepartureDisplay,
   dropoffReturnFlightInfo,
   isDropoffAirportBooking,
   isPickupAirportBooking,
@@ -51,9 +52,20 @@ const HEADER_BLUE = '#2196F3';
 const ICON_BLACK = '#111827';
 const FOOTER_MUTED = '#9CA3AF';
 const SITE_URL = 'https://barcelonataxi24.com/';
-const ICON_SIZE = 22;
-const HEADER_ICON_SIZE = 24;
-const QR_PX = 76;
+const ICON_SIZE = 20;
+const HEADER_ICON_SIZE = 22;
+const QR_PX = 68;
+const ROW_FONT = 17;
+const ROW_LINE = 21;
+const LABEL_COL_W = 148;
+
+function toTitleCase(text: string): string {
+  return text
+    .trim()
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
 
 function notifyCopiedAndroid() {
   if (Platform.OS === 'android') {
@@ -111,6 +123,7 @@ function formatReturnDate(iso: string): string {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
+      timeZone: BOOKING_TIME_ZONE,
     }).format(new Date(iso));
   } catch {
     return iso;
@@ -123,6 +136,7 @@ function formatReturnTime(iso: string): string {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
+      timeZone: BOOKING_TIME_ZONE,
     }).format(new Date(iso));
   } catch {
     return '';
@@ -368,6 +382,7 @@ export function BookingDetailScreen() {
   const bodyMinHeight = scrollMinHeight - insets.top - 48;
   const dropoffAddress = bookingToDisplay(b);
   const dropoffFlightInfo = dropoffReturnFlightInfo(b);
+  const dropoffDeparture = dropoffDepartureDisplay(b);
 
   return (
     <View style={styles.root}>
@@ -437,7 +452,11 @@ export function BookingDetailScreen() {
                 <InfoRow label="Pickup Address" value={bookingFromDisplay(b)} />
                 <InfoRow label="Passengers" value={String(b.passengerCount)} />
                 <InfoRow label="Pickup Date" value={formatPickupDate(b.scheduledTime)} />
-                <InfoRow label="Pickup Time" value={formatPickupTime(b.scheduledTime)} />
+                <InfoRow
+                  label="Pickup Time"
+                  value={formatPickupTime(b.scheduledTime)}
+                  valueBold
+                />
                 {isPickupAirportBooking(b) ? (
                   <>
                     <InfoRow label="Arrival airline" value={pickupArrivalAirline(b) ?? '—'} />
@@ -464,11 +483,19 @@ export function BookingDetailScreen() {
                     <InfoRow label="Departure airline" value={dropoffFlightInfo?.airline ?? '—'} />
                     <InfoRow label="Departure flight" value={dropoffFlightInfo?.flight ?? '—'} />
                     <InfoRow
-                      label="Departure time"
+                      label="Departure Date"
                       value={
-                        dropoffFlightInfo?.returnTimeIso
-                          ? `${formatReturnDate(dropoffFlightInfo.returnTimeIso)} · ${formatReturnTime(dropoffFlightInfo.returnTimeIso)}`
+                        dropoffDeparture?.dateIso
+                          ? formatReturnDate(dropoffDeparture.dateIso)
                           : '—'
+                      }
+                    />
+                    <InfoRow
+                      label="Departure Time"
+                      value={
+                        dropoffDeparture?.timeIso
+                          ? formatReturnTime(dropoffDeparture.timeIso)
+                          : dropoffDeparture?.timeLabel ?? '—'
                       }
                     />
                   </>
@@ -553,15 +580,22 @@ function InfoRow({
   label,
   value,
   onPress,
+  valueBold,
 }: {
   label: string;
   value: string;
   onPress?: () => void;
+  valueBold?: boolean;
 }) {
+  const valueStyle = [
+    styles.infoValue,
+    valueBold ? styles.infoValueBold : null,
+    onPress ? styles.infoValueLink : null,
+  ];
   const content = (
     <>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
+      <Text style={styles.infoLabel}>{toTitleCase(label)}:</Text>
+      <Text style={valueStyle}>{value}</Text>
     </>
   );
   if (!onPress) {
@@ -611,7 +645,7 @@ function CustomerNameRow({
 
   return (
     <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>Customer Name</Text>
+      <Text style={styles.infoLabel}>{toTitleCase('Customer Name')}:</Text>
       <View style={styles.valueWithIcons}>
         <Text style={styles.infoValueFlex} numberOfLines={2}>
           {name}
@@ -686,7 +720,7 @@ function PhoneRow({
 
   return (
     <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>Phone Number</Text>
+      <Text style={styles.infoLabel}>{toTitleCase('Phone Number')}:</Text>
       <View style={styles.valueWithIcons}>
         <Pressable
           onPress={onCall}
@@ -694,7 +728,7 @@ function PhoneRow({
           accessibilityLabel="Call customer"
           style={styles.phoneCircle}
         >
-          <Ionicons name="call" size={18} color="#FFFFFF" />
+          <Ionicons name="call" size={16} color="#FFFFFF" />
         </Pressable>
         <Text style={styles.infoValueFlex} selectable>
           {phone}
@@ -751,7 +785,7 @@ function BookingRefRow({ reference, onCopy }: { reference: string; onCopy: () =>
 
   return (
     <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>Booking Ref</Text>
+      <Text style={styles.infoLabel}>{toTitleCase('Booking Ref')}:</Text>
       <View style={styles.valueWithIcons}>
         <Text style={styles.infoValueFlex} selectable>
           {reference}
@@ -768,7 +802,7 @@ function BookingRefRow({ reference, onCopy }: { reference: string; onCopy: () =>
         >
           <Ionicons
             name={showTick ? 'checkmark-circle' : 'copy'}
-            size={24}
+            size={ICON_SIZE}
             color={showTick ? colors.success : ICON_BLACK}
           />
         </Pressable>
@@ -798,14 +832,14 @@ const styles = StyleSheet.create({
   sectionsBlock: {
     flex: 1,
     justifyContent: 'space-evenly',
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.xs,
   },
   appHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: HEADER_BLUE,
     paddingHorizontal: spacing.sm,
-    paddingBottom: spacing.sm,
+    paddingBottom: 8,
     gap: spacing.xs,
   },
   headerLeft: {
@@ -832,15 +866,15 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 15,
+    fontSize: 14,
   },
   headerBrand: {
     flex: 1,
     textAlign: 'center',
     color: '#FFFFFF',
     fontWeight: '700',
-    fontSize: 16,
-    letterSpacing: 0.4,
+    fontSize: 14,
+    letterSpacing: 0.3,
     paddingHorizontal: 4,
   },
   headerHairline: {
@@ -855,8 +889,8 @@ const styles = StyleSheet.create({
   },
   sectionBar: {
     backgroundColor: HEADER_BLUE,
-    paddingVertical: 10,
-    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
   },
   sectionBarText: {
     color: '#FFFFFF',
@@ -865,57 +899,64 @@ const styles = StyleSheet.create({
   },
   sectionBody: {
     backgroundColor: colors.background,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
+    paddingHorizontal: 10,
+    paddingTop: 6,
+    paddingBottom: 6,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    paddingVertical: 3,
+    marginBottom: 0,
   },
   infoRowPressed: {
     opacity: 0.7,
   },
   infoLabel: {
-    width: '38%',
-    paddingRight: spacing.sm,
+    width: LABEL_COL_W,
+    paddingRight: 4,
     fontWeight: '700',
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: ROW_FONT,
+    lineHeight: ROW_LINE,
     color: ICON_BLACK,
   },
   infoValue: {
     flex: 1,
     flexShrink: 1,
-    fontSize: 16,
+    fontSize: ROW_FONT,
     fontWeight: '400',
     color: ICON_BLACK,
-    lineHeight: 22,
+    lineHeight: ROW_LINE,
+  },
+  infoValueBold: {
+    fontWeight: '700',
+  },
+  infoValueLink: {
+    color: HEADER_BLUE,
+    textDecorationLine: 'underline',
   },
   infoValueFlex: {
     flex: 1,
-    fontSize: 16,
+    fontSize: ROW_FONT,
     fontWeight: '400',
     color: ICON_BLACK,
-    lineHeight: 22,
+    lineHeight: ROW_LINE,
     minWidth: 0,
   },
   valueWithIcons: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    gap: 4,
     minWidth: 0,
   },
   iconBtn: {
-    padding: spacing.xs,
+    padding: 2,
   },
   phoneCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: colors.success,
     alignItems: 'center',
     justifyContent: 'center',
@@ -925,10 +966,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
+    paddingHorizontal: 10,
+    paddingTop: spacing.sm,
     paddingBottom: spacing.sm,
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
   qr: {
     width: QR_PX,
@@ -942,12 +983,13 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   footerSite: {
-    fontSize: 14,
+    fontSize: 12,
     color: FOOTER_MUTED,
     textAlign: 'center',
   },
   footerTime: {
-    fontSize: 13,
+    fontSize: 11,
+    fontStyle: 'italic',
     color: FOOTER_MUTED,
     flexShrink: 0,
   },

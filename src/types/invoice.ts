@@ -20,6 +20,7 @@ export type DriverInvoice = {
   taxAmount: number;
   totalAmount: number;
   sourceBookingUuid: string | null;
+  passengerCount: number;
   childSeatsSummary: string | null;
   createdAt: string;
   updatedAt: string;
@@ -88,6 +89,7 @@ export type CreateDriverInvoiceInput = {
   dropoffAirline?: string;
   dropoffFlightNo?: string;
   priceAmount: number;
+  passengerCount: number;
   /** Sent to API; optional. Server fills from linked booking when omitted and reference matches. */
   childSeatsSummary?: string;
 };

@@ -49,6 +49,16 @@ export async function readResponseErrorMessage(res: Response): Promise<string> {
 }
 
 /** Pass through short, safe server messages; hide JSON blobs and long technical text. */
+function isSessionExpiredMessage(msg: string): boolean {
+  const m = msg.toLowerCase();
+  return (
+    m.includes('expired token') ||
+    m.includes('invalid or expired token') ||
+    m.includes('token is no longer valid') ||
+    m.includes('sign in again')
+  );
+}
+
 export function friendlyFromServerMessage(msg: string): string | null {
   const m = msg.trim();
   if (!m || m.length >= 200 || m.includes('{')) {
@@ -59,6 +69,9 @@ export function friendlyFromServerMessage(msg: string): string | null {
   }
   if (/^request failed \(\d+\)$/i.test(m)) {
     return null;
+  }
+  if (isSessionExpiredMessage(m)) {
+    return 'Your session has expired. Please sign in again.';
   }
   return m;
 }

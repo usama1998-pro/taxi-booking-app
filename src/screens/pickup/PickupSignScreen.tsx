@@ -1,13 +1,14 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
+import { useKeepAwake } from 'expo-keep-awake';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { getPickupSignBrandLines } from '../../navigation/driverChrome';
+import { brandBlue, getPickupSignBrandLines } from '../../navigation/driverChrome';
 import type { PickupSignParams } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<{ PickupSign: PickupSignParams }, 'PickupSign'>;
@@ -16,21 +17,46 @@ function clamp(n: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, n));
 }
 
+/** Bold pickup-sign glyphs are ~0.42–0.48× font size wide on average. */
+const BOLD_CHAR_WIDTH_RATIO = 0.44;
+
+function computePickupSignNameFontSize(
+  name: string,
+  usableWidth: number,
+  usableHeight: number,
+  tabletLike: boolean,
+): number {
+  const minFont = 26;
+  const maxFont = tabletLike ? 260 : 210;
+  const trimmed = name.trim() || '—';
+  const charCount = Math.max(trimmed.length, 1);
+  const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
+
+  const widthCap = (usableWidth * 0.98) / (charCount * BOLD_CHAR_WIDTH_RATIO);
+
+  const heightRatio =
+    wordCount <= 1 ? 0.86 : wordCount === 2 ? 0.8 : wordCount === 3 ? 0.72 : 0.62;
+  const heightCap = usableHeight * heightRatio;
+
+  return clamp(Math.round(Math.min(widthCap, heightCap)), minFont, maxFont);
+}
+
 /**
- * Reference layout: landscape-only, small top-centre brand (plane + two lines),
+ * Reference layout: landscape-only, single-line blue brand at top,
  * thin X top-right, large horizontal passenger name centred below.
  */
 export function PickupSignScreen({ route }: Props) {
   const navigation = useNavigation();
   const { customerName } = route.params;
+  useKeepAwake();
   const { width: W, height: H } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
   const nameRaw = customerName.trim() || '—';
-  const { headline: brandHeadline, tagline: brandTagline } = useMemo(
-    () => getPickupSignBrandLines(),
-    [],
-  );
+  const brandLabel = useMemo(() => {
+    const { headline, tagline } = getPickupSignBrandLines();
+    return tagline ? `${headline} ${tagline}` : headline;
+  }, []);
 
   /** This screen is always used in landscape (locked on focus). */
   useFocusEffect(
@@ -58,37 +84,31 @@ export function PickupSignScreen({ route }: Props) {
     }, []),
   );
 
-  const longSide = Math.max(W, H);
   const shortSide = Math.min(W, H);
   const tabletLike = shortSide >= 520;
 
   const pad = clamp(Math.round(shortSide * 0.02), 10, 24);
 
-  /** Header band: logo + close — keep modest vs reference. */
-  const headerReserve = clamp(Math.round(shortSide * 0.11), 56, 82);
+  /** Header band: logo + close — keep modest so the name can dominate. */
+  const headerReserve = clamp(Math.round(shortSide * 0.09), 48, 72);
 
   const usableNameHeight =
-    H - insets.top - insets.bottom - headerReserve - Math.round(pad * 2.5);
+    H - insets.top - insets.bottom - headerReserve - Math.round(pad * 2);
 
   const usableNameWidth = W - insets.left - insets.right - pad * 2;
 
-  const maxNameFont = tabletLike ? 128 : 90;
-  const minNameFont = 34;
-
-  const heightDriven = usableNameHeight * 0.48;
-  const widthDriven = longSide * 0.1;
-  const nameFontSize = clamp(
-    Math.round(Math.min(heightDriven, widthDriven)),
-    minNameFont,
-    maxNameFont,
+  const nameFontSize = computePickupSignNameFontSize(
+    nameRaw,
+    usableNameWidth,
+    usableNameHeight,
+    tabletLike,
   );
 
   /** Reference: fairly tight tracking on the large name. */
   const nameLetterSpacing = clamp(Math.round(nameFontSize * 0.012), 0, 3);
 
   const brandIconSize = clamp(Math.round(shortSide * 0.048), 24, 36);
-  const brandHeadlineSize = clamp(Math.round(16 + shortSide * 0.012), 17, 24);
-  const brandTaglineSize = clamp(brandHeadlineSize - 4, 13, 18);
+  const brandTitleSize = clamp(Math.round(17 + shortSide * 0.014), 18, 26);
   const closeIconSize = clamp(Math.round(30 + shortSide * 0.012), 32, 40);
 
   const headerGutter = clamp(Math.round(shortSide * 0.065), 48, 64);
@@ -114,27 +134,16 @@ export function PickupSignScreen({ route }: Props) {
             <Ionicons
               name="airplane"
               size={brandIconSize}
-              color="#8B4513"
+              color={brandBlue}
               style={styles.brandIcon}
             />
-            <View style={styles.brandTextCol}>
-              <Text
-                style={[styles.brandHeadline, { fontSize: brandHeadlineSize }]}
-                allowFontScaling={false}
-                numberOfLines={1}
-              >
-                {brandHeadline}
-              </Text>
-              {brandTagline ? (
-                <Text
-                  style={[styles.brandTagline, { fontSize: brandTaglineSize }]}
-                  allowFontScaling={false}
-                  numberOfLines={1}
-                >
-                  {brandTagline}
-                </Text>
-              ) : null}
-            </View>
+            <Text
+              style={[styles.brandTitle, { fontSize: brandTitleSize }]}
+              allowFontScaling={false}
+              numberOfLines={1}
+            >
+              {brandLabel}
+            </Text>
           </View>
         </View>
         <View style={[styles.headerGutter, styles.headerGutterRight, { width: headerGutter }]}>
@@ -157,11 +166,12 @@ export function PickupSignScreen({ route }: Props) {
             {
               fontSize: nameFontSize,
               letterSpacing: nameLetterSpacing,
+              width: usableNameWidth,
               maxWidth: usableNameWidth,
             },
           ]}
           adjustsFontSizeToFit
-          minimumFontScale={0.15}
+          minimumFontScale={0.2}
           maxFontSizeMultiplier={1}
           numberOfLines={1}
           allowFontScaling={false}
@@ -204,23 +214,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   brandIcon: {
-    marginRight: 12,
+    marginRight: 10,
   },
-  brandTextCol: {
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-  },
-  /** Reference: top line bold black (“TAXI”). */
-  brandHeadline: {
-    color: '#000000',
+  brandTitle: {
+    color: brandBlue,
     fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  /** Reference: second line smaller, reddish-brown (“BARCELONAS”). */
-  brandTagline: {
-    marginTop: 1,
-    color: '#8B4513',
-    fontWeight: '600',
     letterSpacing: 0.6,
   },
   closeBtn: {

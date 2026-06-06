@@ -2,6 +2,10 @@ import { API_BASE_URL } from '../../constants/config';
 import { ApiRequestError, readResponseErrorMessage } from '../../lib/apiErrors';
 import { buildApiHeaders } from '../../lib/apiHeaders';
 import { logger } from '../../lib/logger';
+import { notifyUnauthorized } from './apiSession';
+
+/** Avoid hanging forever on slow booking create / email backends. */
+const API_REQUEST_TIMEOUT_MS = 90_000;
 
 type FetchOptions = {
   method?: string;
@@ -22,22 +26,36 @@ async function apiRequest(path: string, options: FetchOptions = {}): Promise<Res
 
   logger.debug('API request', { method, path, public: publicRequest ?? false });
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_REQUEST_TIMEOUT_MS);
+
   let res: Response;
   try {
     res = await fetch(url, {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
     });
   } catch (e) {
     const raw = e instanceof Error ? e.message : String(e);
-    logger.warn('API network failure', { path, error: raw });
-    throw new ApiRequestError(raw || 'Network error', 0, path);
+    const aborted = e instanceof Error && e.name === 'AbortError';
+    logger.warn('API network failure', { path, error: raw, aborted });
+    throw new ApiRequestError(
+      aborted ? 'The request timed out. Please try again.' : raw || 'Network error',
+      0,
+      path,
+    );
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   if (!res.ok) {
     const msg = await readResponseErrorMessage(res);
     logger.warn('API HTTP error', { path, status: res.status, message: msg });
+    if (res.status === 401 && token) {
+      notifyUnauthorized();
+    }
     throw new ApiRequestError(msg, res.status, path);
   }
 

@@ -37,7 +37,7 @@ export function HomeStackNavigator() {
       <Stack.Screen
         name="PickupSign"
         component={PickupSignScreen}
-        options={{ headerShown: false, animation: 'fade' }}
+        options={{ headerShown: false, animation: 'fade', gestureEnabled: false }}
       />
     </Stack.Navigator>
   );

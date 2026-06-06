@@ -34,13 +34,12 @@ type Props = {
 
 function formatListTime(iso: string): string {
   try {
-    const value = new Intl.DateTimeFormat('en-US', {
+    return new Intl.DateTimeFormat('en-US', {
       hour: '2-digit',
       minute: '2-digit',
-      hour12: true,
+      hour12: false,
       timeZone: BOOKING_TIME_ZONE,
     }).format(new Date(iso));
-    return value.replace(/\s?(am|pm)$/i, (_, m: string) => ` ${m.toUpperCase()}`);
   } catch {
     return '';
   }

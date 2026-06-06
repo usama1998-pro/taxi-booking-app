@@ -59,11 +59,8 @@ export function bookingFromDisplay(b: Booking): string {
   return pickupLocationNameOnly(b.pickupLocation);
 }
 
-/** "To :" line */
+/** "To :" line — uses the stored drop-off label (including custom airport names). */
 export function bookingToDisplay(b: Booking): string {
-  if (locationJsonIsAirport(readLocationJson(b.dropoffLocation))) {
-    return SHORT_AIRPORT_LABEL;
-  }
   return bookingDropoffLabel(b);
 }
 
@@ -75,6 +72,9 @@ function readLocationJson(value: unknown): Record<string, unknown> | null {
 }
 
 const SHORT_AIRPORT_LABEL = 'Barcelona Airport';
+const LIST_LABEL_MAX = 48;
+/** Collapse only default Barcelona BCN labels on list cards; keep driver-edited airport names. */
+const KNOWN_BCN_LABEL = /^Barcelona[- ]?El Prat/i;
 const AIRPORT_TEXT = /airport|aeropuerto|el\s+prat/i;
 
 function locationJsonIsAirport(o: Record<string, unknown> | null): boolean {
@@ -92,23 +92,24 @@ function locationJsonIsAirport(o: Record<string, unknown> | null): boolean {
   return AIRPORT_TEXT.test(label);
 }
 
-/** Booking list: any airport-related address → short fixed label (avoids long Viator strings). */
-function shortenAddressForList(text: string): string {
+function labelForListDisplay(text: string): string {
   const t = text.trim();
-  if (!t) {
-    return t;
+  if (!t || t === '—') {
+    return t || '—';
   }
-  if (AIRPORT_TEXT.test(t)) {
+  if (KNOWN_BCN_LABEL.test(t)) {
     return SHORT_AIRPORT_LABEL;
+  }
+  if (t.length > LIST_LABEL_MAX) {
+    return `${t.slice(0, LIST_LABEL_MAX - 1)}…`;
   }
   return t;
 }
 
 function locationDisplayForList(value: unknown, fullDisplay: string): string {
-  if (locationJsonIsAirport(readLocationJson(value))) {
-    return SHORT_AIRPORT_LABEL;
-  }
-  return shortenAddressForList(fullDisplay);
+  const fromJson = formatLocationJson(value);
+  const base = fromJson !== '—' ? fromJson : fullDisplay;
+  return labelForListDisplay(base);
 }
 
 /** "From :" line on booking list cards (short airport label). */

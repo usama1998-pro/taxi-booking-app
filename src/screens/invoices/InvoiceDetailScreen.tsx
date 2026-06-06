@@ -146,6 +146,7 @@ export function InvoiceDetailScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Trip</Text>
           <Row label="Pick-up date" value={pickupDateStr} />
+          <Row label="Passengers" value={String(inv.passengerCount)} />
           <Row label={pickupLabel} value={pickup} />
           <Row label={dropLabel} value={dropoff} />
           {inv.childSeatsSummary?.trim() ? (

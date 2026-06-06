@@ -8,10 +8,11 @@ import {
   type RouteProp,
 } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   Platform,
   Pressable,
   ScrollView,
@@ -19,7 +20,9 @@ import {
   Text,
   TextInput,
   View,
+  type LayoutChangeEvent,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '../../context/AuthContext';
 import { getAppUiMessage } from '../../lib/apiErrors';
@@ -40,7 +43,10 @@ import { spacing, typography } from '../../theme';
 
 const brandBlue = '#1E88E5';
 
-const MAX_PASSENGERS_EDIT = 20;
+/** Extra scroll space so fields stay above the keyboard. */
+const KEYBOARD_SCROLL_EXTRA_PAD = 280;
+
+const MAX_PASSENGERS_EDIT = 25;
 const darkerBlue = '#1565C0';
 const FIXED_AIRPORT_LABEL = 'Barcelona-El Prat Airport';
 
@@ -107,11 +113,38 @@ function jsonString(v: unknown, key: string): string {
   return typeof x === 'string' ? x : '';
 }
 
+function FormFieldSlot({
+  fieldId,
+  onLayout,
+  children,
+}: {
+  fieldId: string;
+  onLayout: (id: string, y: number, height: number) => void;
+  children: ReactNode;
+}) {
+  return (
+    <View
+      collapsable={false}
+      onLayout={(e: LayoutChangeEvent) => {
+        const { y, height } = e.nativeEvent.layout;
+        onLayout(fieldId, y, height);
+      }}
+    >
+      {children}
+    </View>
+  );
+}
+
 export function EditReservationScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const { uuid } = route.params;
   const { accessToken } = useAuth();
+  const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
+  const fieldMetrics = useRef<Record<string, { y: number; height: number }>>({});
+  const lastFocusedField = useRef<string | null>(null);
+  const [keyboardBottomInset, setKeyboardBottomInset] = useState(0);
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -427,6 +460,62 @@ export function EditReservationScreen() {
     }
   }, []);
 
+  const onFieldLayout = useCallback((id: string, y: number, height: number) => {
+    fieldMetrics.current[id] = { y, height };
+  }, []);
+
+  const scrollFocusedFieldIntoView = useCallback((id: string) => {
+    const m = fieldMetrics.current[id];
+    if (!m || !scrollRef.current) {
+      return;
+    }
+    scrollRef.current.scrollTo({
+      y: Math.max(0, m.y - spacing.lg),
+      animated: true,
+    });
+  }, []);
+
+  const onFieldFocus = useCallback(
+    (id: string) => {
+      lastFocusedField.current = id;
+      if (keyboardBottomInset > 0) {
+        scrollFocusedFieldIntoView(id);
+      }
+    },
+    [keyboardBottomInset, scrollFocusedFieldIntoView],
+  );
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const onShow = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardBottomInset(e.endCoordinates.height);
+      const id = lastFocusedField.current;
+      if (id) {
+        const delay = Platform.OS === 'ios' ? 50 : 100;
+        setTimeout(() => scrollFocusedFieldIntoView(id), delay);
+      }
+    });
+    const onHide = Keyboard.addListener(hideEvent, () => {
+      setKeyboardBottomInset(0);
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    });
+    return () => {
+      onShow.remove();
+      onHide.remove();
+    };
+  }, [scrollFocusedFieldIntoView]);
+
+  const keyboardOpen = keyboardBottomInset > 0;
+
+  const scrollBottomPad = useMemo(() => {
+    const basePad = spacing.xxl + insets.bottom + spacing.xl + spacing.xxl;
+    if (!keyboardOpen) {
+      return basePad;
+    }
+    return basePad + KEYBOARD_SCROLL_EXTRA_PAD + keyboardBottomInset;
+  }, [insets.bottom, keyboardBottomInset, keyboardOpen]);
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -449,34 +538,45 @@ export function EditReservationScreen() {
   return (
     <View style={styles.root}>
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollBottomPad }]}
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+        keyboardDismissMode="on-drag"
+        scrollEnabled
+        showsVerticalScrollIndicator={keyboardOpen}
+        nestedScrollEnabled
       >
-        <TextInput
-          style={styles.textField}
-          placeholder="Full Name"
-          placeholderTextColor="#9CA3AF"
-          value={fullName}
-          onChangeText={setFullName}
-          autoCapitalize="characters"
-        />
-        <TextInput
-          style={styles.textField}
-          placeholder="Phone Number"
-          placeholderTextColor="#9CA3AF"
-          value={phone}
-          onChangeText={setPhone}
-          keyboardType="phone-pad"
-        />
-        <TextInput
-          style={[styles.textField, styles.readOnlyField]}
-          placeholder="Booking Reference"
-          placeholderTextColor="#9CA3AF"
-          value={bookingRefDisplay}
-          editable={false}
-        />
+          <View style={styles.formBody}>
+            <FormFieldSlot fieldId="fullName" onLayout={onFieldLayout}>
+              <TextInput
+                style={styles.textField}
+                placeholder="Full Name"
+                placeholderTextColor="#9CA3AF"
+                value={fullName}
+                onChangeText={setFullName}
+                onFocus={() => onFieldFocus('fullName')}
+                autoCapitalize="characters"
+              />
+            </FormFieldSlot>
+            <FormFieldSlot fieldId="phone" onLayout={onFieldLayout}>
+              <TextInput
+                style={styles.textField}
+                placeholder="Phone Number"
+                placeholderTextColor="#9CA3AF"
+                value={phone}
+                onChangeText={setPhone}
+                onFocus={() => onFieldFocus('phone')}
+                keyboardType="phone-pad"
+              />
+            </FormFieldSlot>
+            <TextInput
+              style={[styles.textField, styles.readOnlyField]}
+              placeholder="Booking Reference"
+              placeholderTextColor="#9CA3AF"
+              value={bookingRefDisplay}
+              editable={false}
+            />
 
         <View style={styles.blueBarThree}>
           <Pressable style={styles.blueBarThird} onPress={() => setPickerTarget('time')}>
@@ -553,41 +653,51 @@ export function EditReservationScreen() {
         </View>
 
         {pickupKind === 'location' ? (
-          <TextInput
-            style={styles.textField}
-            placeholder="Street / area"
-            placeholderTextColor="#9CA3AF"
-            value={pickupDetail}
-            onChangeText={setPickupDetail}
-          />
+          <FormFieldSlot fieldId="pickupDetail" onLayout={onFieldLayout}>
+            <TextInput
+              style={styles.textField}
+              placeholder="Street / area"
+              placeholderTextColor="#9CA3AF"
+              value={pickupDetail}
+              onChangeText={setPickupDetail}
+              onFocus={() => onFieldFocus('pickupDetail')}
+            />
+          </FormFieldSlot>
         ) : (
           <>
-            <View style={styles.airportSplitBar}>
+            <FormFieldSlot fieldId="pickupAirline" onLayout={onFieldLayout}>
+              <View style={styles.airportSplitBar}>
+                <TextInput
+                  style={styles.airportSplitInput}
+                  placeholder="Airline (optional)"
+                  placeholderTextColor="rgba(255,255,255,0.65)"
+                  value={pickupAirline}
+                  onChangeText={setPickupAirline}
+                  onFocus={() => onFieldFocus('pickupAirline')}
+                  autoCapitalize="characters"
+                />
+                <View style={styles.airportSplitDivider} />
+                <TextInput
+                  style={styles.airportSplitInput}
+                  placeholder="Flight (optional)"
+                  placeholderTextColor="rgba(255,255,255,0.65)"
+                  value={pickupFlight}
+                  onChangeText={setPickupFlight}
+                  onFocus={() => onFieldFocus('pickupAirline')}
+                  autoCapitalize="characters"
+                />
+              </View>
+            </FormFieldSlot>
+            <FormFieldSlot fieldId="pickupMeeting" onLayout={onFieldLayout}>
               <TextInput
-                style={styles.airportSplitInput}
-                placeholder="Airline (optional)"
-                placeholderTextColor="rgba(255,255,255,0.65)"
-                value={pickupAirline}
-                onChangeText={setPickupAirline}
-                autoCapitalize="characters"
+                style={styles.darkerBarInput}
+                placeholder="Street / meeting point"
+                placeholderTextColor="rgba(255,255,255,0.75)"
+                value={pickupMeeting}
+                onChangeText={setPickupMeeting}
+                onFocus={() => onFieldFocus('pickupMeeting')}
               />
-              <View style={styles.airportSplitDivider} />
-              <TextInput
-                style={styles.airportSplitInput}
-                placeholder="Flight (optional)"
-                placeholderTextColor="rgba(255,255,255,0.65)"
-                value={pickupFlight}
-                onChangeText={setPickupFlight}
-                autoCapitalize="characters"
-              />
-            </View>
-            <TextInput
-              style={styles.darkerBarInput}
-              placeholder="Street / meeting point"
-              placeholderTextColor="rgba(255,255,255,0.75)"
-              value={pickupMeeting}
-              onChangeText={setPickupMeeting}
-            />
+            </FormFieldSlot>
           </>
         )}
 
@@ -618,39 +728,45 @@ export function EditReservationScreen() {
             <Text style={styles.airportFixedText}>{FIXED_AIRPORT_LABEL}</Text>
           </View>
         ) : dropoffSimpleStreet ? (
-          <TextInput
-            style={styles.textField}
-            placeholder="Street / area (optional)"
-            placeholderTextColor="#9CA3AF"
-            value={dropoffDetail}
-            onChangeText={setDropoffDetail}
-          />
+          <FormFieldSlot fieldId="dropoffDetail" onLayout={onFieldLayout}>
+            <TextInput
+              style={styles.textField}
+              placeholder="Street / area (optional)"
+              placeholderTextColor="#9CA3AF"
+              value={dropoffDetail}
+              onChangeText={setDropoffDetail}
+              onFocus={() => onFieldFocus('dropoffDetail')}
+            />
+          </FormFieldSlot>
         ) : (
           <>
-            <View style={styles.airportTripleBar}>
-              <View style={styles.tripleCell}>
-                <Text style={styles.tripleHint}>Airline</Text>
-                <TextInput
-                  style={styles.tripleInput}
-                  placeholder="Airline"
-                  placeholderTextColor="rgba(255,255,255,0.6)"
-                  value={dropoffAirline}
-                  onChangeText={setDropoffAirline}
-                  autoCapitalize="characters"
-                />
-              </View>
-              <View style={styles.tripleDivider} />
-              <View style={styles.tripleCell}>
-                <Text style={styles.tripleHint}>Flight (optional)</Text>
-                <TextInput
-                  style={styles.tripleInput}
-                  placeholder="Flight (optional)"
-                  placeholderTextColor="rgba(255,255,255,0.6)"
-                  value={dropoffFlight}
-                  onChangeText={setDropoffFlight}
-                  autoCapitalize="characters"
-                />
-              </View>
+            <FormFieldSlot fieldId="dropoffAirline" onLayout={onFieldLayout}>
+              <View style={styles.airportTripleBar}>
+                <View style={styles.tripleCell}>
+                  <Text style={styles.tripleHint}>Airline</Text>
+                  <TextInput
+                    style={styles.tripleInput}
+                    placeholder="Airline"
+                    placeholderTextColor="rgba(255,255,255,0.6)"
+                    value={dropoffAirline}
+                    onChangeText={setDropoffAirline}
+                    onFocus={() => onFieldFocus('dropoffAirline')}
+                    autoCapitalize="characters"
+                  />
+                </View>
+                <View style={styles.tripleDivider} />
+                <View style={styles.tripleCell}>
+                  <Text style={styles.tripleHint}>Flight (optional)</Text>
+                  <TextInput
+                    style={styles.tripleInput}
+                    placeholder="Flight (optional)"
+                    placeholderTextColor="rgba(255,255,255,0.6)"
+                    value={dropoffFlight}
+                    onChangeText={setDropoffFlight}
+                    onFocus={() => onFieldFocus('dropoffAirline')}
+                    autoCapitalize="characters"
+                  />
+                </View>
               <View style={styles.tripleDivider} />
               <Pressable style={styles.tripleCell} onPress={() => setPickerTarget('dropoffTime')}>
                 <Text style={styles.tripleHint}>Time</Text>
@@ -661,38 +777,43 @@ export function EditReservationScreen() {
             <View style={styles.airportFixedBar}>
               <Text style={styles.airportFixedText}>{FIXED_AIRPORT_LABEL}</Text>
             </View>
+            </FormFieldSlot>
           </>
         )}
 
-        <TextInput
-          style={[styles.textField, styles.notesField]}
-          placeholder="Notes"
-          placeholderTextColor="#9CA3AF"
-          value={notes}
-          onChangeText={setNotes}
-          multiline
-          textAlignVertical="top"
-        />
+            <FormFieldSlot fieldId="notes" onLayout={onFieldLayout}>
+              <TextInput
+                style={[styles.textField, styles.notesField]}
+                placeholder="Notes"
+                placeholderTextColor="#9CA3AF"
+                value={notes}
+                onChangeText={setNotes}
+                onFocus={() => onFieldFocus('notes')}
+                multiline
+                textAlignVertical="top"
+              />
+            </FormFieldSlot>
 
-        <Pressable
-          style={[styles.outlineButton, submitting && styles.outlineButtonDisabled]}
-          disabled={submitting}
-          onPress={() => void save()}
-        >
-          {submitting ? (
-            <ActivityIndicator color={brandBlue} />
-          ) : (
-            <Text style={styles.outlineButtonText}>DONE</Text>
-          )}
-        </Pressable>
-        <Pressable
-          style={styles.outlineButton}
-          disabled={submitting}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.outlineButtonText}>CANCEL</Text>
-        </Pressable>
-      </ScrollView>
+            <Pressable
+              style={[styles.outlineButton, styles.outlineButtonFirst, submitting && styles.outlineButtonDisabled]}
+              disabled={submitting}
+              onPress={() => void save()}
+            >
+              {submitting ? (
+                <ActivityIndicator color={brandBlue} />
+              ) : (
+                <Text style={styles.outlineButtonText}>DONE</Text>
+              )}
+            </Pressable>
+            <Pressable
+              style={styles.outlineButton}
+              disabled={submitting}
+              onPress={() => navigation.goBack()}
+            >
+              <Text style={styles.outlineButtonText}>CANCEL</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
 
       {pickerTarget && (
         <DateTimePicker
@@ -758,7 +879,10 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
-    paddingBottom: spacing.xxl,
+    flexGrow: 0,
+  },
+  formBody: {
+    gap: 0,
   },
   centered: {
     flex: 1,
@@ -953,13 +1077,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   outlineButton: {
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
     borderWidth: 2,
     borderColor: brandBlue,
     backgroundColor: '#FFFFFF',
     paddingVertical: spacing.md + 4,
     borderRadius: 4,
     alignItems: 'center',
+  },
+  outlineButtonFirst: {
+    marginTop: spacing.lg,
   },
   outlineButtonDisabled: { opacity: 0.7 },
   outlineButtonText: {

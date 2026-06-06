@@ -4,10 +4,11 @@ import DateTimePicker, {
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   Platform,
   Pressable,
   ScrollView,
@@ -16,6 +17,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '../../context/AuthContext';
 import { getDriverRootNavigation } from '../../navigation/getDriverRootNavigation';
@@ -32,9 +34,13 @@ import { spacing, typography } from '../../theme';
 import type { BookingsStackParamList } from '../../navigation/types';
 
 const brandBlue = '#1E88E5';
+const darkerBlue = '#1565C0';
 
-/** Fixed airport name when Location / Airport toggle is Airport (per product UI). */
+/** Default airport name when Airport is selected. */
 const FIXED_AIRPORT_LABEL = 'Barcelona-El Prat Airport';
+
+/** Extra scroll space so fields stay above the keyboard (matches InvoiceCreate). */
+const KEYBOARD_SCROLL_EXTRA_PAD = 280;
 
 type LocationKind = 'location' | 'airport';
 
@@ -61,17 +67,16 @@ function buildStreetLocation(detail: string): Record<string, unknown> {
   };
 }
 
-function buildFixedAirportLocation(): Record<string, unknown> {
-  return { kind: 'airport', label: FIXED_AIRPORT_LABEL };
-}
-
-function buildPickupAirportLocation(airline: string, flight: string): Record<string, unknown> {
-  const a = airline.trim();
-  const f = flight.trim();
+function buildAirportLocation(
+  airportLabel: string,
+  options?: { airline?: string; flight?: string },
+): Record<string, unknown> {
   const loc: Record<string, unknown> = {
     kind: 'airport',
-    label: FIXED_AIRPORT_LABEL,
+    label: airportLabel.trim() || FIXED_AIRPORT_LABEL,
   };
+  const a = options?.airline?.trim();
+  const f = options?.flight?.trim();
   if (a) {
     loc.airline = a;
   }
@@ -83,9 +88,37 @@ function buildPickupAirportLocation(airline: string, flight: string): Record<str
 
 type Nav = NativeStackNavigationProp<BookingsStackParamList, 'NewReservation'>;
 
+function FormFieldSlot({
+  fieldId,
+  onLayout,
+  children,
+}: {
+  fieldId: string;
+  onLayout: (id: string, y: number, height: number) => void;
+  children: ReactNode;
+}) {
+  return (
+    <View
+      collapsable={false}
+      onLayout={(e) => {
+        const { y, height } = e.nativeEvent.layout;
+        onLayout(fieldId, y, height);
+      }}
+    >
+      {children}
+    </View>
+  );
+}
+
 export function NewReservationScreen() {
   const navigation = useNavigation<Nav>();
-  const { user, signOut } = useAuth();
+  const { user, ensureAccessToken } = useAuth();
+  const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
+  const fieldMetrics = useRef<Record<string, { y: number; height: number }>>({});
+  const lastFocusedField = useRef<string | null>(null);
+  const [keyboardBottomInset, setKeyboardBottomInset] = useState(0);
+  const keyboardOpen = keyboardBottomInset > 0;
 
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
@@ -96,9 +129,11 @@ export function NewReservationScreen() {
   const [pickupKind, setPickupKind] = useState<LocationKind>('location');
   const [dropoffKind, setDropoffKind] = useState<LocationKind>('location');
   const [pickupDetail, setPickupDetail] = useState('');
+  const [pickupAirportLabel, setPickupAirportLabel] = useState(FIXED_AIRPORT_LABEL);
   const [pickupAirline, setPickupAirline] = useState('');
   const [pickupFlight, setPickupFlight] = useState('');
   const [dropoffDetail, setDropoffDetail] = useState('');
+  const [dropoffAirportLabel, setDropoffAirportLabel] = useState(FIXED_AIRPORT_LABEL);
   const [notes, setNotes] = useState('');
 
   const [pickerTarget, setPickerTarget] = useState<PickerTarget>(null);
@@ -155,8 +190,62 @@ export function NewReservationScreen() {
   );
 
   const adjustPassengers = useCallback((delta: number) => {
-    setPassengerCount((n) => Math.min(8, Math.max(1, n + delta)));
+    setPassengerCount((n) => Math.min(25, Math.max(1, n + delta)));
   }, []);
+
+  const onFieldLayout = useCallback((id: string, y: number, height: number) => {
+    fieldMetrics.current[id] = { y, height };
+  }, []);
+
+  const scrollFocusedFieldIntoView = useCallback((id: string) => {
+    const m = fieldMetrics.current[id];
+    if (!m || !scrollRef.current) {
+      return;
+    }
+    scrollRef.current.scrollTo({
+      y: Math.max(0, m.y - spacing.lg),
+      animated: true,
+    });
+  }, []);
+
+  const onFieldFocus = useCallback(
+    (id: string) => {
+      lastFocusedField.current = id;
+      if (keyboardOpen) {
+        scrollFocusedFieldIntoView(id);
+      }
+    },
+    [keyboardOpen, scrollFocusedFieldIntoView],
+  );
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const onShow = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardBottomInset(e.endCoordinates.height);
+      const id = lastFocusedField.current;
+      if (id) {
+        const delay = Platform.OS === 'ios' ? 50 : 100;
+        setTimeout(() => scrollFocusedFieldIntoView(id), delay);
+      }
+    });
+    const onHide = Keyboard.addListener(hideEvent, () => {
+      setKeyboardBottomInset(0);
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    });
+    return () => {
+      onShow.remove();
+      onHide.remove();
+    };
+  }, [scrollFocusedFieldIntoView]);
+
+  const scrollBottomPad = useMemo(() => {
+    const basePad = spacing.xxl + insets.bottom + spacing.xl;
+    if (!keyboardOpen) {
+      return basePad;
+    }
+    return basePad + KEYBOARD_SCROLL_EXTRA_PAD + keyboardBottomInset;
+  }, [insets.bottom, keyboardBottomInset, keyboardOpen]);
 
   const submit = useCallback(async () => {
     if (!user?.id) {
@@ -171,11 +260,16 @@ export function NewReservationScreen() {
     }
     const pickupLocation: Record<string, unknown> =
       pickupKind === 'airport'
-        ? buildPickupAirportLocation(pickupAirline, pickupFlight)
+        ? buildAirportLocation(pickupAirportLabel, {
+            airline: pickupAirline,
+            flight: pickupFlight,
+          })
         : buildStreetLocation(pickupDetail);
 
     const dropoffLocation: Record<string, unknown> =
-      dropoffKind === 'airport' ? buildFixedAirportLocation() : buildStreetLocation(dropoffDetail);
+      dropoffKind === 'airport'
+        ? buildAirportLocation(dropoffAirportLabel)
+        : buildStreetLocation(dropoffDetail);
 
     const flightNumber =
       pickupKind === 'airport'
@@ -206,6 +300,14 @@ export function NewReservationScreen() {
 
     setSubmitting(true);
     try {
+      const token = await ensureAccessToken();
+      if (!token) {
+        Alert.alert(
+          'Session expired',
+          'Please sign in again. If you tapped Done just before this, the booking may still have been saved.',
+        );
+        return;
+      }
       await bookingsApi.create(body);
       goToBookingsList();
     } catch (e) {
@@ -215,14 +317,17 @@ export function NewReservationScreen() {
       setSubmitting(false);
     }
   }, [
+    ensureAccessToken,
     user?.id,
     fullName,
     phone,
     bookingRef,
     pickupDetail,
+    pickupAirportLabel,
     pickupAirline,
     pickupFlight,
     dropoffDetail,
+    dropoffAirportLabel,
     pickupKind,
     dropoffKind,
     notes,
@@ -235,35 +340,49 @@ export function NewReservationScreen() {
   return (
     <View style={styles.root}>
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollBottomPad }]}
+        scrollEnabled
         keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator={keyboardOpen}
+        nestedScrollEnabled
       >
-        <TextInput
-          style={styles.textField}
-          placeholder="Full Name"
-          placeholderTextColor="#9CA3AF"
-          value={fullName}
-          onChangeText={setFullName}
-          autoCapitalize="words"
-        />
-        <TextInput
-          style={styles.textField}
-          placeholder="Phone Number"
-          placeholderTextColor="#9CA3AF"
-          value={phone}
-          onChangeText={setPhone}
-          keyboardType="phone-pad"
-        />
-        <TextInput
-          style={styles.textField}
-          placeholder="Booking Reference"
-          placeholderTextColor="#9CA3AF"
-          value={bookingRef}
-          onChangeText={setBookingRef}
-          autoCapitalize="characters"
-        />
+          <View style={styles.formBody}>
+            <FormFieldSlot fieldId="fullName" onLayout={onFieldLayout}>
+              <TextInput
+                style={styles.textField}
+                placeholder="Full Name"
+                placeholderTextColor="#9CA3AF"
+                value={fullName}
+                onChangeText={setFullName}
+                onFocus={() => onFieldFocus('fullName')}
+                autoCapitalize="words"
+              />
+            </FormFieldSlot>
+            <FormFieldSlot fieldId="phone" onLayout={onFieldLayout}>
+              <TextInput
+                style={styles.textField}
+                placeholder="Phone Number"
+                placeholderTextColor="#9CA3AF"
+                value={phone}
+                onChangeText={setPhone}
+                onFocus={() => onFieldFocus('phone')}
+                keyboardType="phone-pad"
+              />
+            </FormFieldSlot>
+            <FormFieldSlot fieldId="bookingRef" onLayout={onFieldLayout}>
+              <TextInput
+                style={styles.textField}
+                placeholder="Booking Reference"
+                placeholderTextColor="#9CA3AF"
+                value={bookingRef}
+                onChangeText={setBookingRef}
+                onFocus={() => onFieldFocus('bookingRef')}
+                autoCapitalize="characters"
+              />
+            </FormFieldSlot>
 
         <View style={styles.blueBarThree}>
           <Pressable style={styles.blueBarThird} onPress={() => setPickerTarget('time')}>
@@ -294,7 +413,7 @@ export function NewReservationScreen() {
               >
                 <Ionicons
                   name="remove"
-                  size={22}
+                  size={24}
                   color={passengerCount <= 1 ? 'rgba(255,255,255,0.35)' : '#FFFFFF'}
                 />
               </Pressable>
@@ -302,19 +421,19 @@ export function NewReservationScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Increase passengers"
-                accessibilityState={{ disabled: passengerCount >= 8 }}
-                disabled={passengerCount >= 8}
+                accessibilityState={{ disabled: passengerCount >= 25 }}
+                disabled={passengerCount >= 25}
                 hitSlop={8}
                 onPress={() => adjustPassengers(1)}
                 style={({ pressed }) => [
                   styles.passengerStepBtn,
-                  pressed && passengerCount < 8 && styles.passengerStepPressed,
+                  pressed && passengerCount < 25 && styles.passengerStepPressed,
                 ]}
               >
                 <Ionicons
                   name="add"
                   size={22}
-                  color={passengerCount >= 8 ? 'rgba(255,255,255,0.35)' : '#FFFFFF'}
+                  color={passengerCount >= 25 ? 'rgba(255,255,255,0.35)' : '#FFFFFF'}
                 />
               </Pressable>
             </View>
@@ -333,7 +452,10 @@ export function NewReservationScreen() {
               </Text>
             </Pressable>
             <Pressable
-              onPress={() => setPickupKind('airport')}
+              onPress={() => {
+                setPickupKind('airport');
+                setPickupAirportLabel((v) => v.trim() || FIXED_AIRPORT_LABEL);
+              }}
               style={[styles.segment, pickupKind === 'airport' && styles.segmentSelected]}
             >
               <Text style={[styles.segmentText, pickupKind === 'airport' && styles.segmentTextSelected]}>
@@ -343,37 +465,51 @@ export function NewReservationScreen() {
           </View>
         </View>
         {pickupKind === 'location' ? (
-          <TextInput
-            style={styles.textField}
-            placeholder="Street / area (optional)"
-            placeholderTextColor="#9CA3AF"
-            value={pickupDetail}
-            onChangeText={setPickupDetail}
-          />
+          <FormFieldSlot fieldId="pickupDetail" onLayout={onFieldLayout}>
+            <TextInput
+              style={styles.textField}
+              placeholder="Street / area (optional)"
+              placeholderTextColor="#9CA3AF"
+              value={pickupDetail}
+              onChangeText={setPickupDetail}
+              onFocus={() => onFieldFocus('pickupDetail')}
+            />
+          </FormFieldSlot>
         ) : (
           <>
-            <View style={styles.airportSplitBar}>
+            <FormFieldSlot fieldId="pickupAirline" onLayout={onFieldLayout}>
+              <View style={styles.airportSplitBar}>
+                <TextInput
+                  style={styles.airportSplitInput}
+                  placeholder="Airline (optional)"
+                  placeholderTextColor="rgba(255,255,255,0.65)"
+                  value={pickupAirline}
+                  onChangeText={setPickupAirline}
+                  onFocus={() => onFieldFocus('pickupAirline')}
+                  autoCapitalize="characters"
+                />
+                <View style={styles.airportSplitDivider} />
+                <TextInput
+                  style={styles.airportSplitInput}
+                  placeholder="Flight (optional)"
+                  placeholderTextColor="rgba(255,255,255,0.65)"
+                  value={pickupFlight}
+                  onChangeText={setPickupFlight}
+                  onFocus={() => onFieldFocus('pickupAirline')}
+                  autoCapitalize="characters"
+                />
+              </View>
+            </FormFieldSlot>
+            <FormFieldSlot fieldId="pickupAirport" onLayout={onFieldLayout}>
               <TextInput
-                style={styles.airportSplitInput}
-                placeholder="Airline (optional)"
-                placeholderTextColor="rgba(255,255,255,0.65)"
-                value={pickupAirline}
-                onChangeText={setPickupAirline}
-                autoCapitalize="characters"
+                style={styles.darkerBarInput}
+                placeholder="Airport name"
+                placeholderTextColor="rgba(255,255,255,0.75)"
+                value={pickupAirportLabel}
+                onChangeText={setPickupAirportLabel}
+                onFocus={() => onFieldFocus('pickupAirport')}
               />
-              <View style={styles.airportSplitDivider} />
-              <TextInput
-                style={styles.airportSplitInput}
-                placeholder="Flight (optional)"
-                placeholderTextColor="rgba(255,255,255,0.65)"
-                value={pickupFlight}
-                onChangeText={setPickupFlight}
-                autoCapitalize="characters"
-              />
-            </View>
-            <View style={styles.airportFixedBar}>
-              <Text style={styles.airportFixedText}>{FIXED_AIRPORT_LABEL}</Text>
-            </View>
+            </FormFieldSlot>
           </>
         )}
 
@@ -389,7 +525,10 @@ export function NewReservationScreen() {
               </Text>
             </Pressable>
             <Pressable
-              onPress={() => setDropoffKind('airport')}
+              onPress={() => {
+                setDropoffKind('airport');
+                setDropoffAirportLabel((v) => v.trim() || FIXED_AIRPORT_LABEL);
+              }}
               style={[styles.segment, dropoffKind === 'airport' && styles.segmentSelected]}
             >
               <Text style={[styles.segmentText, dropoffKind === 'airport' && styles.segmentTextSelected]}>
@@ -399,41 +538,56 @@ export function NewReservationScreen() {
           </View>
         </View>
         {dropoffKind === 'location' ? (
-          <TextInput
-            style={styles.textField}
-            placeholder="Street / area (optional)"
-            placeholderTextColor="#9CA3AF"
-            value={dropoffDetail}
-            onChangeText={setDropoffDetail}
-          />
+          <FormFieldSlot fieldId="dropoffDetail" onLayout={onFieldLayout}>
+            <TextInput
+              style={styles.textField}
+              placeholder="Street / area (optional)"
+              placeholderTextColor="#9CA3AF"
+              value={dropoffDetail}
+              onChangeText={setDropoffDetail}
+              onFocus={() => onFieldFocus('dropoffDetail')}
+            />
+          </FormFieldSlot>
         ) : (
-          <View style={styles.airportFixedBar}>
-            <Text style={styles.airportFixedText}>{FIXED_AIRPORT_LABEL}</Text>
-          </View>
+          <FormFieldSlot fieldId="dropoffAirport" onLayout={onFieldLayout}>
+            <TextInput
+              style={styles.darkerBarInput}
+              placeholder="Airport name"
+              placeholderTextColor="rgba(255,255,255,0.75)"
+              value={dropoffAirportLabel}
+              onChangeText={setDropoffAirportLabel}
+              onFocus={() => onFieldFocus('dropoffAirport')}
+            />
+          </FormFieldSlot>
         )}
 
-        <TextInput
-          style={[styles.textField, styles.notesField]}
-          placeholder="Notes"
-          placeholderTextColor="#9CA3AF"
-          value={notes}
-          onChangeText={setNotes}
-          multiline
-          textAlignVertical="top"
-        />
+            <FormFieldSlot fieldId="notes" onLayout={onFieldLayout}>
+              <TextInput
+                style={[styles.textField, styles.notesField]}
+                placeholder="Notes"
+                placeholderTextColor="#9CA3AF"
+                value={notes}
+                onChangeText={setNotes}
+                onFocus={() => onFieldFocus('notes')}
+                multiline
+                numberOfLines={2}
+                textAlignVertical="top"
+              />
+            </FormFieldSlot>
 
-        <Pressable
-          style={[styles.doneButton, submitting && styles.doneButtonDisabled]}
-          disabled={submitting}
-          onPress={() => void submit()}
-        >
-          {submitting ? (
-            <ActivityIndicator color={brandBlue} />
-          ) : (
-            <Text style={styles.doneButtonText}>DONE</Text>
-          )}
-        </Pressable>
-      </ScrollView>
+            <Pressable
+              style={[styles.doneButton, submitting && styles.doneButtonDisabled]}
+              disabled={submitting}
+              onPress={() => void submit()}
+            >
+              {submitting ? (
+                <ActivityIndicator color={brandBlue} />
+              ) : (
+                <Text style={styles.doneButtonText}>DONE</Text>
+              )}
+            </Pressable>
+          </View>
+        </ScrollView>
 
       {pickerTarget && (
         <DateTimePicker
@@ -497,6 +651,17 @@ function NewReservationSignOutButton() {
   );
 }
 
+const formFont = {
+  field: 19,
+  notes: 19,
+  barLabel: 13,
+  barValue: 18,
+  sectionTitle: 18,
+  segment: 16,
+  airportInput: 18,
+  done: 18,
+} as const;
+
 const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -507,30 +672,39 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xxl,
+    paddingTop: spacing.xs,
+    flexGrow: 0,
+  },
+  formBody: {
+    gap: 0,
   },
   textField: {
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#D1D5DB',
     borderRadius: 4,
     paddingHorizontal: spacing.md,
-    paddingVertical: Platform.OS === 'ios' ? spacing.md : spacing.sm,
-    marginBottom: spacing.sm,
+    paddingVertical: 10,
+    marginBottom: spacing.xs,
     ...typography.body,
+    fontSize: formFont.field,
+    lineHeight: 22,
     color: '#111827',
   },
   notesField: {
-    minHeight: 120,
-    paddingTop: spacing.md,
+    fontSize: formFont.notes,
+    lineHeight: 22,
+    minHeight: 48,
+    maxHeight: 56,
+    paddingTop: 10,
+    marginBottom: 0,
   },
   blueBarThree: {
     flexDirection: 'row',
     backgroundColor: brandBlue,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm,
     paddingHorizontal: spacing.sm,
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xs,
   },
   blueBarThird: {
     flex: 1,
@@ -561,27 +735,27 @@ const styles = StyleSheet.create({
   },
   passengerCountText: {
     color: '#FFFFFF',
-    fontSize: 17,
+    fontSize: formFont.barValue,
     fontWeight: '700',
-    minWidth: 22,
+    minWidth: 26,
     textAlign: 'center',
   },
   blueBarLabel: {
     color: 'rgba(255,255,255,0.95)',
-    fontSize: 11,
+    fontSize: formFont.barLabel,
     fontWeight: '700',
     letterSpacing: 0.5,
   },
   blueBarUnderline: {
     height: 2,
     backgroundColor: '#FFFFFF',
-    marginTop: 4,
-    marginBottom: 6,
+    marginTop: 2,
+    marginBottom: 4,
     alignSelf: 'stretch',
   },
   blueBarValue: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: formFont.barValue,
     fontWeight: '600',
   },
   locationBlueBar: {
@@ -596,7 +770,7 @@ const styles = StyleSheet.create({
   locationBlueTitle: {
     color: '#FFFFFF',
     fontWeight: '800',
-    fontSize: 15,
+    fontSize: formFont.sectionTitle,
     letterSpacing: 0.4,
   },
   segmentGroup: {
@@ -606,10 +780,10 @@ const styles = StyleSheet.create({
   segment: {
     borderWidth: 1,
     borderColor: '#FFFFFF',
-    paddingVertical: 6,
-    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+    paddingHorizontal: spacing.md,
     borderRadius: 4,
-    minWidth: 84,
+    minWidth: 92,
     alignItems: 'center',
   },
   segmentSelected: {
@@ -618,7 +792,7 @@ const styles = StyleSheet.create({
   segmentText: {
     color: '#FFFFFF',
     fontWeight: '600',
-    fontSize: 13,
+    fontSize: formFont.segment,
   },
   segmentTextSelected: {
     color: brandBlue,
@@ -627,12 +801,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: brandBlue,
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
     paddingHorizontal: spacing.sm,
   },
   airportSplitInput: {
     flex: 1,
     ...typography.body,
+    fontSize: formFont.airportInput,
+    lineHeight: 22,
     color: '#FFFFFF',
     paddingVertical: Platform.OS === 'ios' ? spacing.sm : spacing.xs,
     paddingHorizontal: spacing.sm,
@@ -643,26 +819,24 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.75)',
     marginHorizontal: spacing.xs,
   },
-  airportFixedBar: {
-    backgroundColor: brandBlue,
+  darkerBarInput: {
+    backgroundColor: darkerBlue,
+    color: '#FFFFFF',
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
     marginBottom: spacing.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  airportFixedText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 15,
-    textAlign: 'center',
+    ...typography.body,
+    fontSize: formFont.airportInput,
+    lineHeight: 24,
+    fontWeight: '600',
   },
   doneButton: {
     marginTop: spacing.lg,
+    marginBottom: spacing.sm,
     borderWidth: 2,
     borderColor: brandBlue,
     backgroundColor: '#FFFFFF',
-    paddingVertical: spacing.md + 4,
+    paddingVertical: spacing.md + 2,
     borderRadius: 4,
     alignItems: 'center',
     justifyContent: 'center',
@@ -673,7 +847,7 @@ const styles = StyleSheet.create({
   doneButtonText: {
     color: brandBlue,
     fontWeight: '800',
-    fontSize: 16,
+    fontSize: formFont.done,
     letterSpacing: 0.8,
   },
   headerIconBtn: {

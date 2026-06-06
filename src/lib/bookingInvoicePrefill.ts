@@ -45,6 +45,7 @@ export function bookingToInvoicePrefill(b: Booking): InvoiceCreatePrefill {
   const ref = b.bookingReference?.trim() ?? '';
   const seats = bookingChildSeatsSummary(b);
   const childSeatsSummary = seats ?? undefined;
+  const passengerCount = Math.min(25, Math.max(1, b.passengerCount));
 
   if (b.flightNumber?.trim()) {
     const sp = splitFlight(b.flightNumber);
@@ -60,6 +61,7 @@ export function bookingToInvoicePrefill(b: Booking): InvoiceCreatePrefill {
       pickupFlightNo: sp.flightNo,
       dropoffKind: 'LOCATION',
       dropoffAddress: dropAddr,
+      passengerCount,
       childSeatsSummary,
     };
   }
@@ -74,6 +76,7 @@ export function bookingToInvoicePrefill(b: Booking): InvoiceCreatePrefill {
     pickupAddress: pickupAddr,
     dropoffKind: 'LOCATION',
     dropoffAddress: dropAddr,
+    passengerCount,
     childSeatsSummary,
   };
 }

@@ -34,6 +34,7 @@ import type { InvoiceAddressKind, InvoiceCreatePrefill } from '../../types/invoi
 import { colors, spacing, typography } from '../../theme';
 
 const TAX_RATE = 0.1;
+const MAX_PASSENGERS_INVOICE = 25;
 /** Matches other driver chrome (home / bookings / reservations). */
 const brandBlue = '#1E88E5';
 
@@ -136,6 +137,7 @@ type ParsedBookingPaste = {
   pickupAirline?: string;
   pickupFlightNo?: string;
   useAirportPickup?: boolean;
+  passengerCount?: number;
   childSeatsSummary?: string;
 };
 
@@ -181,6 +183,11 @@ function parsePastedBookingDetailsBlock(raw: string): ParsedBookingPaste | null 
       }
     } else if (key === 'child seats') {
       out.childSeatsSummary = val;
+    } else if (key === 'passengers' || key === 'passenger') {
+      const n = Number.parseInt(val, 10);
+      if (Number.isFinite(n)) {
+        out.passengerCount = Math.min(MAX_PASSENGERS_INVOICE, Math.max(1, n));
+      }
     }
   }
   if (
@@ -189,6 +196,7 @@ function parsePastedBookingDetailsBlock(raw: string): ParsedBookingPaste | null 
     out.phoneNumber ||
     out.pickupDateYmd ||
     out.pickupFlightNo ||
+    out.passengerCount ||
     out.childSeatsSummary
   ) {
     return out;
@@ -224,6 +232,7 @@ export function InvoiceCreateScreen() {
   const [dropoffAirline, setDropoffAirline] = useState('');
   const [dropoffFlightNo, setDropoffFlightNo] = useState('');
 
+  const [passengerCount, setPassengerCount] = useState(1);
   const [priceText, setPriceText] = useState('');
   const [childSeatsSummary, setChildSeatsSummary] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
@@ -237,6 +246,12 @@ export function InvoiceCreateScreen() {
     setBookingReference(p.bookingReference);
     setPickupDateYmd(p.pickupDateYmd);
     setPriceText(p.priceText);
+    setPassengerCount(
+      Math.min(
+        MAX_PASSENGERS_INVOICE,
+        Math.max(1, p.passengerCount ?? 1),
+      ),
+    );
     setPickupKind(p.pickupKind);
     setPickupAddress(p.pickupAddress ?? '');
     setPickupAirline(p.pickupAirline ?? '');
@@ -258,6 +273,10 @@ export function InvoiceCreateScreen() {
       navigation.setParams({ prefill: undefined });
     }, [route.params, applyPrefill, navigation]),
   );
+
+  const adjustPassengers = useCallback((delta: number) => {
+    setPassengerCount((n) => Math.min(MAX_PASSENGERS_INVOICE, Math.max(1, n + delta)));
+  }, []);
 
   const priceNum = Number.parseFloat(priceText.replace(/,/g, ''));
   const priceValid = Number.isFinite(priceNum) && priceNum >= 0;
@@ -713,6 +732,40 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.75)',
     fontSize: 15,
     fontWeight: '600',
+  },
+  passengerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: brandBlue,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  passengerBarLabel: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 13,
+    letterSpacing: 1,
+  },
+  passengerStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  passengerStepBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  passengerStepPressed: { opacity: 0.75 },
+  passengerCountText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 22,
+    minWidth: 32,
+    textAlign: 'center',
   },
   locBar: {
     flexDirection: 'row',

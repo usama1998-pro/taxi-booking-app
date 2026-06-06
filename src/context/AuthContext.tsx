@@ -13,6 +13,7 @@ import { clearAppCaches } from '../lib/clearAppCaches';
 import { getAuthUiMessage } from '../lib/authErrors';
 import { logger } from '../lib/logger';
 import { authApi } from '../services/auth/authApi';
+import { registerUnauthorizedHandler } from '../services/api/apiSession';
 import {
   clearStoredAccessToken,
   getStoredAccessToken,
@@ -38,6 +39,8 @@ type AuthContextValue = {
   isSigningOut: boolean;
   verifyCode: (code: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Returns a valid token or null after clearing an expired session. */
+  ensureAccessToken: () => Promise<string | null>;
   refreshProfile: () => Promise<void>;
   updateAvailability: (isAvailable: boolean) => Promise<void>;
 };
@@ -187,6 +190,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [accessToken]);
 
+  const ensureAccessToken = useCallback(async (): Promise<string | null> => {
+    const token = accessToken ?? (await getStoredAccessToken());
+    if (!token) {
+      return null;
+    }
+    try {
+      await authApi.verify(token);
+      if (token !== accessToken) {
+        setAccessToken(token);
+      }
+      return token;
+    } catch (e) {
+      logger.warn('Auth: session no longer valid', e);
+      await clearStoredAccessToken();
+      setAccessToken(null);
+      setUser(null);
+      return null;
+    }
+  }, [accessToken]);
+
+  useEffect(() => {
+    registerUnauthorizedHandler(() => {
+      void (async () => {
+        if (signOutInProgress.current) {
+          return;
+        }
+        logger.warn('Auth: API returned 401 — clearing session');
+        await clearStoredAccessToken();
+        setAccessToken(null);
+        setUser(null);
+      })();
+    });
+    return () => registerUnauthorizedHandler(null);
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
@@ -195,6 +233,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isSigningOut,
       verifyCode,
       signOut,
+      ensureAccessToken,
       refreshProfile,
       updateAvailability,
     }),
@@ -205,6 +244,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isSigningOut,
       verifyCode,
       signOut,
+      ensureAccessToken,
       refreshProfile,
       updateAvailability,
     ],

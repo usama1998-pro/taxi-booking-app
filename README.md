@@ -1,4 +1,4 @@
-# Taxi Booking Driver App (Expo)
+# BarcelonaTaxi24 Driver App (Expo)
 
 React Native app powered by Expo.
 

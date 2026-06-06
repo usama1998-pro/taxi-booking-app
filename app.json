@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Taxi Barcelona 24",
+    "name": "BarcelonaTaxi24",
     "slug": "app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -15,13 +15,13 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "CFBundleDisplayName": "Taxi Barcelona 24",
+        "CFBundleDisplayName": "BarcelonaTaxi24",
         "UIFileSharingEnabled": true,
         "LSSupportsOpeningDocumentsInPlace": true
       }
     },
     "android": {
-      "label": "Taxi Barcelona 24",
+      "label": "BarcelonaTaxi24",
       "permissions": ["POST_NOTIFICATIONS"],
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
@@ -49,8 +49,8 @@
       [
         "expo-media-library",
         {
-          "photosPermission": "Allow Taxi Barcelona 24 to save booking screenshots to your gallery.",
-          "savePhotosPermission": "Allow Taxi Barcelona 24 to save booking screenshots to your gallery.",
+          "photosPermission": "Allow BarcelonaTaxi24 to save booking screenshots to your gallery.",
+          "savePhotosPermission": "Allow BarcelonaTaxi24 to save booking screenshots to your gallery.",
           "isAccessMediaLocationEnabled": false
         }
       ]

@@ -547,273 +547,273 @@ export function EditReservationScreen() {
         showsVerticalScrollIndicator={keyboardOpen}
         nestedScrollEnabled
       >
-          <View style={styles.formBody}>
-            <FormFieldSlot fieldId="fullName" onLayout={onFieldLayout}>
-              <TextInput
-                style={styles.textField}
-                placeholder="Full Name"
-                placeholderTextColor="#9CA3AF"
-                value={fullName}
-                onChangeText={setFullName}
-                onFocus={() => onFieldFocus('fullName')}
-                autoCapitalize="characters"
-              />
-            </FormFieldSlot>
-            <FormFieldSlot fieldId="phone" onLayout={onFieldLayout}>
-              <TextInput
-                style={styles.textField}
-                placeholder="Phone Number"
-                placeholderTextColor="#9CA3AF"
-                value={phone}
-                onChangeText={setPhone}
-                onFocus={() => onFieldFocus('phone')}
-                keyboardType="phone-pad"
-              />
-            </FormFieldSlot>
-            <TextInput
-              style={[styles.textField, styles.readOnlyField]}
-              placeholder="Booking Reference"
-              placeholderTextColor="#9CA3AF"
-              value={bookingRefDisplay}
-              editable={false}
-            />
-
-        <View style={styles.blueBarThree}>
-          <Pressable style={styles.blueBarThird} onPress={() => setPickerTarget('time')}>
-            <Text style={styles.timePrimary}>{formatTime24(puTime)}</Text>
-            <Text style={styles.timeSecondary}>{formatTime12(puTime)}</Text>
-          </Pressable>
-          <Pressable style={[styles.blueBarThird, styles.barDividerLeft]} onPress={() => setPickerTarget('date')}>
-            <Text style={styles.timePrimary}>{formatDateDash(puDate)}</Text>
-            <Text style={styles.timeSecondary}>{formatDateOrdinalLine(puDate)}</Text>
-          </Pressable>
-          <View style={[styles.blueBarThird, styles.barDividerLeft, styles.passengerColumn]}>
-            <View style={styles.passengerStepper}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Decrease passengers"
-                accessibilityState={{ disabled: passengerCount <= 1 }}
-                disabled={passengerCount <= 1}
-                hitSlop={8}
-                onPress={() => adjustPassengers(-1)}
-                style={({ pressed }) => [
-                  styles.passengerStepBtn,
-                  pressed && passengerCount > 1 && styles.passengerStepPressed,
-                ]}
-              >
-                <Ionicons
-                  name="remove"
-                  size={22}
-                  color={passengerCount <= 1 ? 'rgba(255,255,255,0.35)' : '#FFFFFF'}
-                />
-              </Pressable>
-              <Text style={styles.passengerCountLarge}>{passengerCount}</Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Increase passengers"
-                accessibilityState={{ disabled: passengerCount >= MAX_PASSENGERS_EDIT }}
-                disabled={passengerCount >= MAX_PASSENGERS_EDIT}
-                hitSlop={8}
-                onPress={() => adjustPassengers(1)}
-                style={({ pressed }) => [
-                  styles.passengerStepBtn,
-                  pressed && passengerCount < MAX_PASSENGERS_EDIT && styles.passengerStepPressed,
-                ]}
-              >
-                <Ionicons
-                  name="add"
-                  size={22}
-                  color={passengerCount >= MAX_PASSENGERS_EDIT ? 'rgba(255,255,255,0.35)' : '#FFFFFF'}
-                />
-              </Pressable>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.locationBlueBar}>
-          <Text style={styles.locationBlueTitle}>PICK UP</Text>
-          <View style={styles.segmentGroup}>
-            <Pressable
-              onPress={() => onPickupKind('location')}
-              style={[styles.segment, pickupKind === 'location' && styles.segmentSelected]}
-            >
-              <Text style={[styles.segmentText, pickupKind === 'location' && styles.segmentTextSelected]}>
-                Location
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => onPickupKind('airport')}
-              style={[styles.segment, pickupKind === 'airport' && styles.segmentSelected]}
-            >
-              <Text style={[styles.segmentText, pickupKind === 'airport' && styles.segmentTextSelected]}>
-                Airport
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-
-        {pickupKind === 'location' ? (
-          <FormFieldSlot fieldId="pickupDetail" onLayout={onFieldLayout}>
+        <View style={styles.formBody}>
+          <FormFieldSlot fieldId="fullName" onLayout={onFieldLayout}>
             <TextInput
               style={styles.textField}
-              placeholder="Street / area"
+              placeholder="Full Name"
               placeholderTextColor="#9CA3AF"
-              value={pickupDetail}
-              onChangeText={setPickupDetail}
-              onFocus={() => onFieldFocus('pickupDetail')}
+              value={fullName}
+              onChangeText={setFullName}
+              onFocus={() => onFieldFocus('fullName')}
+              autoCapitalize="characters"
             />
           </FormFieldSlot>
-        ) : (
-          <>
-            <FormFieldSlot fieldId="pickupAirline" onLayout={onFieldLayout}>
-              <View style={styles.airportSplitBar}>
-                <TextInput
-                  style={styles.airportSplitInput}
-                  placeholder="Airline (optional)"
-                  placeholderTextColor="rgba(255,255,255,0.65)"
-                  value={pickupAirline}
-                  onChangeText={setPickupAirline}
-                  onFocus={() => onFieldFocus('pickupAirline')}
-                  autoCapitalize="characters"
-                />
-                <View style={styles.airportSplitDivider} />
-                <TextInput
-                  style={styles.airportSplitInput}
-                  placeholder="Flight (optional)"
-                  placeholderTextColor="rgba(255,255,255,0.65)"
-                  value={pickupFlight}
-                  onChangeText={setPickupFlight}
-                  onFocus={() => onFieldFocus('pickupAirline')}
-                  autoCapitalize="characters"
-                />
+          <FormFieldSlot fieldId="phone" onLayout={onFieldLayout}>
+            <TextInput
+              style={styles.textField}
+              placeholder="Phone Number"
+              placeholderTextColor="#9CA3AF"
+              value={phone}
+              onChangeText={setPhone}
+              onFocus={() => onFieldFocus('phone')}
+              keyboardType="phone-pad"
+            />
+          </FormFieldSlot>
+          <TextInput
+            style={[styles.textField, styles.readOnlyField]}
+            placeholder="Booking Reference"
+            placeholderTextColor="#9CA3AF"
+            value={bookingRefDisplay}
+            editable={false}
+          />
+
+          <View style={styles.blueBarThree}>
+            <Pressable style={styles.blueBarThird} onPress={() => setPickerTarget('time')}>
+              <Text style={styles.timePrimary}>{formatTime24(puTime)}</Text>
+              <Text style={styles.timeSecondary}>{formatTime12(puTime)}</Text>
+            </Pressable>
+            <Pressable style={[styles.blueBarThird, styles.barDividerLeft]} onPress={() => setPickerTarget('date')}>
+              <Text style={styles.timePrimary}>{formatDateDash(puDate)}</Text>
+              <Text style={styles.timeSecondary}>{formatDateOrdinalLine(puDate)}</Text>
+            </Pressable>
+            <View style={[styles.blueBarThird, styles.barDividerLeft, styles.passengerColumn]}>
+              <View style={styles.passengerStepper}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Decrease passengers"
+                  accessibilityState={{ disabled: passengerCount <= 1 }}
+                  disabled={passengerCount <= 1}
+                  hitSlop={8}
+                  onPress={() => adjustPassengers(-1)}
+                  style={({ pressed }) => [
+                    styles.passengerStepBtn,
+                    pressed && passengerCount > 1 && styles.passengerStepPressed,
+                  ]}
+                >
+                  <Ionicons
+                    name="remove"
+                    size={22}
+                    color={passengerCount <= 1 ? 'rgba(255,255,255,0.35)' : '#FFFFFF'}
+                  />
+                </Pressable>
+                <Text style={styles.passengerCountLarge}>{passengerCount}</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Increase passengers"
+                  accessibilityState={{ disabled: passengerCount >= MAX_PASSENGERS_EDIT }}
+                  disabled={passengerCount >= MAX_PASSENGERS_EDIT}
+                  hitSlop={8}
+                  onPress={() => adjustPassengers(1)}
+                  style={({ pressed }) => [
+                    styles.passengerStepBtn,
+                    pressed && passengerCount < MAX_PASSENGERS_EDIT && styles.passengerStepPressed,
+                  ]}
+                >
+                  <Ionicons
+                    name="add"
+                    size={22}
+                    color={passengerCount >= MAX_PASSENGERS_EDIT ? 'rgba(255,255,255,0.35)' : '#FFFFFF'}
+                  />
+                </Pressable>
               </View>
-            </FormFieldSlot>
-            <FormFieldSlot fieldId="pickupMeeting" onLayout={onFieldLayout}>
-              <TextInput
-                style={styles.darkerBarInput}
-                placeholder="Street / meeting point"
-                placeholderTextColor="rgba(255,255,255,0.75)"
-                value={pickupMeeting}
-                onChangeText={setPickupMeeting}
-                onFocus={() => onFieldFocus('pickupMeeting')}
-              />
-            </FormFieldSlot>
-          </>
-        )}
-
-        <View style={styles.locationBlueBar}>
-          <Text style={styles.locationBlueTitle}>DROP OFF</Text>
-          <View style={styles.segmentGroup}>
-            <Pressable
-              onPress={() => onDropoffKind('location')}
-              style={[styles.segment, dropoffKind === 'location' && styles.segmentSelected]}
-            >
-              <Text style={[styles.segmentText, dropoffKind === 'location' && styles.segmentTextSelected]}>
-                Location
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => onDropoffKind('airport')}
-              style={[styles.segment, dropoffKind === 'airport' && styles.segmentSelected]}
-            >
-              <Text style={[styles.segmentText, dropoffKind === 'airport' && styles.segmentTextSelected]}>
-                Airport
-              </Text>
-            </Pressable>
+            </View>
           </View>
-        </View>
 
-        {dropoffKind === 'airport' ? (
-          <View style={styles.airportFixedBar}>
-            <Text style={styles.airportFixedText}>{FIXED_AIRPORT_LABEL}</Text>
-          </View>
-        ) : dropoffSimpleStreet ? (
-          <FormFieldSlot fieldId="dropoffDetail" onLayout={onFieldLayout}>
-            <TextInput
-              style={styles.textField}
-              placeholder="Street / area (optional)"
-              placeholderTextColor="#9CA3AF"
-              value={dropoffDetail}
-              onChangeText={setDropoffDetail}
-              onFocus={() => onFieldFocus('dropoffDetail')}
-            />
-          </FormFieldSlot>
-        ) : (
-          <>
-            <FormFieldSlot fieldId="dropoffAirline" onLayout={onFieldLayout}>
-              <View style={styles.airportTripleBar}>
-                <View style={styles.tripleCell}>
-                  <Text style={styles.tripleHint}>Airline</Text>
-                  <TextInput
-                    style={styles.tripleInput}
-                    placeholder="Airline"
-                    placeholderTextColor="rgba(255,255,255,0.6)"
-                    value={dropoffAirline}
-                    onChangeText={setDropoffAirline}
-                    onFocus={() => onFieldFocus('dropoffAirline')}
-                    autoCapitalize="characters"
-                  />
-                </View>
-                <View style={styles.tripleDivider} />
-                <View style={styles.tripleCell}>
-                  <Text style={styles.tripleHint}>Flight (optional)</Text>
-                  <TextInput
-                    style={styles.tripleInput}
-                    placeholder="Flight (optional)"
-                    placeholderTextColor="rgba(255,255,255,0.6)"
-                    value={dropoffFlight}
-                    onChangeText={setDropoffFlight}
-                    onFocus={() => onFieldFocus('dropoffAirline')}
-                    autoCapitalize="characters"
-                  />
-                </View>
-              <View style={styles.tripleDivider} />
-              <Pressable style={styles.tripleCell} onPress={() => setPickerTarget('dropoffTime')}>
-                <Text style={styles.tripleHint}>Time</Text>
-                <Text style={styles.tripleTime}>{formatTime24(dropoffTime)}</Text>
-                <Text style={styles.tripleTimeSmall}>{formatTime12(dropoffTime)}</Text>
+          <View style={styles.locationBlueBar}>
+            <Text style={styles.locationBlueTitle}>PICK UP</Text>
+            <View style={styles.segmentGroup}>
+              <Pressable
+                onPress={() => onPickupKind('location')}
+                style={[styles.segment, pickupKind === 'location' && styles.segmentSelected]}
+              >
+                <Text style={[styles.segmentText, pickupKind === 'location' && styles.segmentTextSelected]}>
+                  Location
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => onPickupKind('airport')}
+                style={[styles.segment, pickupKind === 'airport' && styles.segmentSelected]}
+              >
+                <Text style={[styles.segmentText, pickupKind === 'airport' && styles.segmentTextSelected]}>
+                  Airport
+                </Text>
               </Pressable>
             </View>
+          </View>
+
+          {pickupKind === 'location' ? (
+            <FormFieldSlot fieldId="pickupDetail" onLayout={onFieldLayout}>
+              <TextInput
+                style={styles.textField}
+                placeholder="Street / area"
+                placeholderTextColor="#9CA3AF"
+                value={pickupDetail}
+                onChangeText={setPickupDetail}
+                onFocus={() => onFieldFocus('pickupDetail')}
+              />
+            </FormFieldSlot>
+          ) : (
+            <>
+              <FormFieldSlot fieldId="pickupAirline" onLayout={onFieldLayout}>
+                <View style={styles.airportSplitBar}>
+                  <TextInput
+                    style={styles.airportSplitInput}
+                    placeholder="Airline (optional)"
+                    placeholderTextColor="rgba(255,255,255,0.65)"
+                    value={pickupAirline}
+                    onChangeText={setPickupAirline}
+                    onFocus={() => onFieldFocus('pickupAirline')}
+                    autoCapitalize="characters"
+                  />
+                  <View style={styles.airportSplitDivider} />
+                  <TextInput
+                    style={styles.airportSplitInput}
+                    placeholder="Flight (optional)"
+                    placeholderTextColor="rgba(255,255,255,0.65)"
+                    value={pickupFlight}
+                    onChangeText={setPickupFlight}
+                    onFocus={() => onFieldFocus('pickupAirline')}
+                    autoCapitalize="characters"
+                  />
+                </View>
+              </FormFieldSlot>
+              <FormFieldSlot fieldId="pickupMeeting" onLayout={onFieldLayout}>
+                <TextInput
+                  style={styles.darkerBarInput}
+                  placeholder="Street / meeting point"
+                  placeholderTextColor="rgba(255,255,255,0.75)"
+                  value={pickupMeeting}
+                  onChangeText={setPickupMeeting}
+                  onFocus={() => onFieldFocus('pickupMeeting')}
+                />
+              </FormFieldSlot>
+            </>
+          )}
+
+          <View style={styles.locationBlueBar}>
+            <Text style={styles.locationBlueTitle}>DROP OFF</Text>
+            <View style={styles.segmentGroup}>
+              <Pressable
+                onPress={() => onDropoffKind('location')}
+                style={[styles.segment, dropoffKind === 'location' && styles.segmentSelected]}
+              >
+                <Text style={[styles.segmentText, dropoffKind === 'location' && styles.segmentTextSelected]}>
+                  Location
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => onDropoffKind('airport')}
+                style={[styles.segment, dropoffKind === 'airport' && styles.segmentSelected]}
+              >
+                <Text style={[styles.segmentText, dropoffKind === 'airport' && styles.segmentTextSelected]}>
+                  Airport
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+
+          {dropoffKind === 'airport' ? (
             <View style={styles.airportFixedBar}>
               <Text style={styles.airportFixedText}>{FIXED_AIRPORT_LABEL}</Text>
             </View>
-            </FormFieldSlot>
-          </>
-        )}
-
-            <FormFieldSlot fieldId="notes" onLayout={onFieldLayout}>
+          ) : dropoffSimpleStreet ? (
+            <FormFieldSlot fieldId="dropoffDetail" onLayout={onFieldLayout}>
               <TextInput
-                style={[styles.textField, styles.notesField]}
-                placeholder="Notes"
+                style={styles.textField}
+                placeholder="Street / area (optional)"
                 placeholderTextColor="#9CA3AF"
-                value={notes}
-                onChangeText={setNotes}
-                onFocus={() => onFieldFocus('notes')}
-                multiline
-                textAlignVertical="top"
+                value={dropoffDetail}
+                onChangeText={setDropoffDetail}
+                onFocus={() => onFieldFocus('dropoffDetail')}
               />
             </FormFieldSlot>
+          ) : (
+            <>
+              <FormFieldSlot fieldId="dropoffAirline" onLayout={onFieldLayout}>
+                <View style={styles.airportTripleBar}>
+                  <View style={styles.tripleCell}>
+                    <Text style={styles.tripleHint}>Airline</Text>
+                    <TextInput
+                      style={styles.tripleInput}
+                      placeholder="Airline"
+                      placeholderTextColor="rgba(255,255,255,0.6)"
+                      value={dropoffAirline}
+                      onChangeText={setDropoffAirline}
+                      onFocus={() => onFieldFocus('dropoffAirline')}
+                      autoCapitalize="characters"
+                    />
+                  </View>
+                  <View style={styles.tripleDivider} />
+                  <View style={styles.tripleCell}>
+                    <Text style={styles.tripleHint}>Flight (optional)</Text>
+                    <TextInput
+                      style={styles.tripleInput}
+                      placeholder="Flight (optional)"
+                      placeholderTextColor="rgba(255,255,255,0.6)"
+                      value={dropoffFlight}
+                      onChangeText={setDropoffFlight}
+                      onFocus={() => onFieldFocus('dropoffAirline')}
+                      autoCapitalize="characters"
+                    />
+                  </View>
+                  <View style={styles.tripleDivider} />
+                  <Pressable style={styles.tripleCell} onPress={() => setPickerTarget('dropoffTime')}>
+                    <Text style={styles.tripleHint}>Time</Text>
+                    <Text style={styles.tripleTime}>{formatTime24(dropoffTime)}</Text>
+                    <Text style={styles.tripleTimeSmall}>{formatTime12(dropoffTime)}</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.airportFixedBar}>
+                  <Text style={styles.airportFixedText}>{FIXED_AIRPORT_LABEL}</Text>
+                </View>
+              </FormFieldSlot>
+            </>
+          )}
 
-            <Pressable
-              style={[styles.outlineButton, styles.outlineButtonFirst, submitting && styles.outlineButtonDisabled]}
-              disabled={submitting}
-              onPress={() => void save()}
-            >
-              {submitting ? (
-                <ActivityIndicator color={brandBlue} />
-              ) : (
-                <Text style={styles.outlineButtonText}>DONE</Text>
-              )}
-            </Pressable>
-            <Pressable
-              style={styles.outlineButton}
-              disabled={submitting}
-              onPress={() => navigation.goBack()}
-            >
-              <Text style={styles.outlineButtonText}>CANCEL</Text>
-            </Pressable>
-          </View>
-        </ScrollView>
+          <FormFieldSlot fieldId="notes" onLayout={onFieldLayout}>
+            <TextInput
+              style={[styles.textField, styles.notesField]}
+              placeholder="Notes"
+              placeholderTextColor="#9CA3AF"
+              value={notes}
+              onChangeText={setNotes}
+              onFocus={() => onFieldFocus('notes')}
+              multiline
+              textAlignVertical="top"
+            />
+          </FormFieldSlot>
+
+          <Pressable
+            style={[styles.outlineButton, styles.outlineButtonFirst, submitting && styles.outlineButtonDisabled]}
+            disabled={submitting}
+            onPress={() => void save()}
+          >
+            {submitting ? (
+              <ActivityIndicator color={brandBlue} />
+            ) : (
+              <Text style={styles.outlineButtonText}>DONE</Text>
+            )}
+          </Pressable>
+          <Pressable
+            style={styles.outlineButton}
+            disabled={submitting}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.outlineButtonText}>CANCEL</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
 
       {pickerTarget && (
         <DateTimePicker

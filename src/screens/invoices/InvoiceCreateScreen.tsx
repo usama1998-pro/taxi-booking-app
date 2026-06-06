@@ -421,220 +421,220 @@ export function InvoiceCreateScreen() {
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
-        <TextInput
-          style={fieldStyle}
-          placeholder="Full Name"
-          placeholderTextColor="#B0BEC5"
-          value={fullName}
-          onChangeText={setFullName}
-          autoCapitalize="words"
-        />
-        <TextInput
-          style={fieldStyle}
-          placeholder="Phone Number"
-          placeholderTextColor="#B0BEC5"
-          value={phoneNumber}
-          onChangeText={setPhoneNumber}
-          keyboardType="phone-pad"
-        />
-        <View>
-          <TextInput
-            style={[fieldStyle, styles.bookingRefInput]}
-            placeholder="Booking Reference"
-            placeholderTextColor="#B0BEC5"
-            value={bookingReference}
-            onChangeText={handleBookingReferenceChange}
-            onEndEditing={() => void tryLoadSuggestedPrice()}
-            multiline
-            autoCapitalize="characters"
-          />
-          {loadingPrice ? (
-            <View style={styles.priceHintRow}>
-              <ActivityIndicator size="small" color={brandBlue} />
-              <Text style={styles.priceHint}>Checking booking price…</Text>
-            </View>
-          ) : null}
-        </View>
-
-        {Platform.OS === 'web' ? (
           <TextInput
             style={fieldStyle}
-            placeholder="PU date (YYYY-MM-DD)"
+            placeholder="Full Name"
             placeholderTextColor="#B0BEC5"
-            value={pickupDateYmd}
-            onChangeText={setPickupDateYmd}
+            value={fullName}
+            onChangeText={setFullName}
+            autoCapitalize="words"
           />
-        ) : (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Choose pick-up date"
-            onPress={openDatePicker}
-            style={styles.puDateBlock}
-          >
-            <View style={styles.puDateTop}>
-              <Text style={styles.puDateLabel}>PU DATE</Text>
-              <View style={styles.puDateUnderline} />
-            </View>
-            <View style={styles.puDateBottom}>
-              <Text style={pickupDateYmd ? styles.puDateValue : styles.puDatePlaceholder}>
-                {pickupDateYmd ? formatPickupDisplay(pickupDateYmd) : 'Tap to choose date'}
-              </Text>
-            </View>
-          </Pressable>
-        )}
-
-        {Platform.OS === 'android' && showAndroidDatePicker ? (
-          <DateTimePicker
-            value={ymdToLocalDate(pickupDateYmd) ?? new Date()}
-            mode="date"
-            display="calendar"
-            onChange={(event: DateTimePickerEvent, date?: Date) => {
-              setShowAndroidDatePicker(false);
-              if (event.type === 'set' && date) {
-                setPickupDateYmd(toYmd(date));
-              }
-            }}
+          <TextInput
+            style={fieldStyle}
+            placeholder="Phone Number"
+            placeholderTextColor="#B0BEC5"
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
+            keyboardType="phone-pad"
           />
-        ) : null}
-
-        {Platform.OS === 'ios' ? (
-          <Modal
-            visible={showIosDatePicker}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setShowIosDatePicker(false)}
-          >
-            <View style={styles.dateModalOverlay}>
-              <Pressable style={styles.dateModalBackdrop} onPress={() => setShowIosDatePicker(false)} />
-              <View style={styles.dateModalSheet}>
-                <View style={styles.dateModalHeader}>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => setShowIosDatePicker(false)}
-                    hitSlop={12}
-                  >
-                    <Text style={styles.dateModalHeaderBtn}>Cancel</Text>
-                  </Pressable>
-                  <Text style={styles.dateModalTitle}>PU DATE</Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => {
-                      setPickupDateYmd(toYmd(iosDateDraft));
-                      setShowIosDatePicker(false);
-                    }}
-                    hitSlop={12}
-                  >
-                    <Text style={styles.dateModalHeaderBtnStrong}>Done</Text>
-                  </Pressable>
-                </View>
-                <DateTimePicker
-                  value={iosDateDraft}
-                  mode="date"
-                  display="inline"
-                  themeVariant="light"
-                  onChange={(_event: DateTimePickerEvent, date?: Date) => {
-                    if (date) {
-                      setIosDateDraft(date);
-                    }
-                  }}
-                  style={styles.iosInlinePicker}
-                />
+          <View>
+            <TextInput
+              style={[fieldStyle, styles.bookingRefInput]}
+              placeholder="Booking Reference"
+              placeholderTextColor="#B0BEC5"
+              value={bookingReference}
+              onChangeText={handleBookingReferenceChange}
+              onEndEditing={() => void tryLoadSuggestedPrice()}
+              multiline
+              autoCapitalize="characters"
+            />
+            {loadingPrice ? (
+              <View style={styles.priceHintRow}>
+                <ActivityIndicator size="small" color={brandBlue} />
+                <Text style={styles.priceHint}>Checking booking price…</Text>
               </View>
-            </View>
-          </Modal>
-        ) : null}
-
-        <LocationAirportBar title="PICK UP" value={pickupKind} onChange={setPickupKind} />
-        {pickupKind === 'LOCATION' ? (
-          <TextInput
-            style={fieldStyle}
-            placeholder="Pick-up address"
-            placeholderTextColor="#B0BEC5"
-            value={pickupAddress}
-            onChangeText={setPickupAddress}
-            multiline
-          />
-        ) : (
-          <View style={styles.airportFields}>
-            <TextInput
-              style={fieldStyle}
-              placeholder="Airline (optional)"
-              placeholderTextColor="#B0BEC5"
-              value={pickupAirline}
-              onChangeText={setPickupAirline}
-            />
-            <TextInput
-              style={fieldStyle}
-              placeholder="Flight number"
-              placeholderTextColor="#B0BEC5"
-              value={pickupFlightNo}
-              onChangeText={setPickupFlightNo}
-            />
+            ) : null}
           </View>
-        )}
 
-        <LocationAirportBar title="DROP OFF" value={dropoffKind} onChange={setDropoffKind} />
-        {dropoffKind === 'LOCATION' ? (
-          <TextInput
-            style={fieldStyle}
-            placeholder="Drop-off address (optional)"
-            placeholderTextColor="#B0BEC5"
-            value={dropoffAddress}
-            onChangeText={setDropoffAddress}
-            multiline
-          />
-        ) : (
-          <View style={styles.airportFields}>
+          {Platform.OS === 'web' ? (
             <TextInput
               style={fieldStyle}
-              placeholder="Airline (optional)"
+              placeholder="PU date (YYYY-MM-DD)"
               placeholderTextColor="#B0BEC5"
-              value={dropoffAirline}
-              onChangeText={setDropoffAirline}
+              value={pickupDateYmd}
+              onChangeText={setPickupDateYmd}
             />
-            <TextInput
-              style={fieldStyle}
-              placeholder="Flight number (optional)"
-              placeholderTextColor="#B0BEC5"
-              value={dropoffFlightNo}
-              onChangeText={setDropoffFlightNo}
-            />
-          </View>
-        )}
-
-        <TextInput
-          style={fieldStyle}
-          placeholder="Price"
-          placeholderTextColor="#B0BEC5"
-          value={priceText}
-          onChangeText={setPriceText}
-          keyboardType="decimal-pad"
-        />
-        <View style={[fieldStyle, styles.readonlyBox]}>
-          <Text style={subtotal > 0 ? styles.readonlyValue : styles.readonlyPlaceholder}>
-            {subtotal > 0 ? formatInvoiceMoney(deductionAmount) : '10% tax'}
-          </Text>
-        </View>
-        <View style={[fieldStyle, styles.readonlyBox]}>
-          <Text style={subtotal > 0 ? styles.readonlyValue : styles.readonlyPlaceholder}>
-            {subtotal > 0 ? formatInvoiceMoney(totalAmount) : 'Remaining'}
-          </Text>
-        </View>
-
-        {formError ? <Text style={styles.formError}>{formError}</Text> : null}
-
-        <Pressable
-          style={[styles.doneButton, submitting && styles.doneDisabled]}
-          disabled={submitting}
-          onPress={() => void submit()}
-        >
-          {submitting ? (
-            <ActivityIndicator color={brandBlue} />
           ) : (
-            <Text style={styles.doneText}>DONE</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Choose pick-up date"
+              onPress={openDatePicker}
+              style={styles.puDateBlock}
+            >
+              <View style={styles.puDateTop}>
+                <Text style={styles.puDateLabel}>PU DATE</Text>
+                <View style={styles.puDateUnderline} />
+              </View>
+              <View style={styles.puDateBottom}>
+                <Text style={pickupDateYmd ? styles.puDateValue : styles.puDatePlaceholder}>
+                  {pickupDateYmd ? formatPickupDisplay(pickupDateYmd) : 'Tap to choose date'}
+                </Text>
+              </View>
+            </Pressable>
           )}
-        </Pressable>
-      </ScrollView>
+
+          {Platform.OS === 'android' && showAndroidDatePicker ? (
+            <DateTimePicker
+              value={ymdToLocalDate(pickupDateYmd) ?? new Date()}
+              mode="date"
+              display="calendar"
+              onChange={(event: DateTimePickerEvent, date?: Date) => {
+                setShowAndroidDatePicker(false);
+                if (event.type === 'set' && date) {
+                  setPickupDateYmd(toYmd(date));
+                }
+              }}
+            />
+          ) : null}
+
+          {Platform.OS === 'ios' ? (
+            <Modal
+              visible={showIosDatePicker}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setShowIosDatePicker(false)}
+            >
+              <View style={styles.dateModalOverlay}>
+                <Pressable style={styles.dateModalBackdrop} onPress={() => setShowIosDatePicker(false)} />
+                <View style={styles.dateModalSheet}>
+                  <View style={styles.dateModalHeader}>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => setShowIosDatePicker(false)}
+                      hitSlop={12}
+                    >
+                      <Text style={styles.dateModalHeaderBtn}>Cancel</Text>
+                    </Pressable>
+                    <Text style={styles.dateModalTitle}>PU DATE</Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => {
+                        setPickupDateYmd(toYmd(iosDateDraft));
+                        setShowIosDatePicker(false);
+                      }}
+                      hitSlop={12}
+                    >
+                      <Text style={styles.dateModalHeaderBtnStrong}>Done</Text>
+                    </Pressable>
+                  </View>
+                  <DateTimePicker
+                    value={iosDateDraft}
+                    mode="date"
+                    display="inline"
+                    themeVariant="light"
+                    onChange={(_event: DateTimePickerEvent, date?: Date) => {
+                      if (date) {
+                        setIosDateDraft(date);
+                      }
+                    }}
+                    style={styles.iosInlinePicker}
+                  />
+                </View>
+              </View>
+            </Modal>
+          ) : null}
+
+          <LocationAirportBar title="PICK UP" value={pickupKind} onChange={setPickupKind} />
+          {pickupKind === 'LOCATION' ? (
+            <TextInput
+              style={fieldStyle}
+              placeholder="Pick-up address"
+              placeholderTextColor="#B0BEC5"
+              value={pickupAddress}
+              onChangeText={setPickupAddress}
+              multiline
+            />
+          ) : (
+            <View style={styles.airportFields}>
+              <TextInput
+                style={fieldStyle}
+                placeholder="Airline (optional)"
+                placeholderTextColor="#B0BEC5"
+                value={pickupAirline}
+                onChangeText={setPickupAirline}
+              />
+              <TextInput
+                style={fieldStyle}
+                placeholder="Flight number"
+                placeholderTextColor="#B0BEC5"
+                value={pickupFlightNo}
+                onChangeText={setPickupFlightNo}
+              />
+            </View>
+          )}
+
+          <LocationAirportBar title="DROP OFF" value={dropoffKind} onChange={setDropoffKind} />
+          {dropoffKind === 'LOCATION' ? (
+            <TextInput
+              style={fieldStyle}
+              placeholder="Drop-off address (optional)"
+              placeholderTextColor="#B0BEC5"
+              value={dropoffAddress}
+              onChangeText={setDropoffAddress}
+              multiline
+            />
+          ) : (
+            <View style={styles.airportFields}>
+              <TextInput
+                style={fieldStyle}
+                placeholder="Airline (optional)"
+                placeholderTextColor="#B0BEC5"
+                value={dropoffAirline}
+                onChangeText={setDropoffAirline}
+              />
+              <TextInput
+                style={fieldStyle}
+                placeholder="Flight number (optional)"
+                placeholderTextColor="#B0BEC5"
+                value={dropoffFlightNo}
+                onChangeText={setDropoffFlightNo}
+              />
+            </View>
+          )}
+
+          <TextInput
+            style={fieldStyle}
+            placeholder="Price"
+            placeholderTextColor="#B0BEC5"
+            value={priceText}
+            onChangeText={setPriceText}
+            keyboardType="decimal-pad"
+          />
+          <View style={[fieldStyle, styles.readonlyBox]}>
+            <Text style={subtotal > 0 ? styles.readonlyValue : styles.readonlyPlaceholder}>
+              {subtotal > 0 ? formatInvoiceMoney(deductionAmount) : '10% tax'}
+            </Text>
+          </View>
+          <View style={[fieldStyle, styles.readonlyBox]}>
+            <Text style={subtotal > 0 ? styles.readonlyValue : styles.readonlyPlaceholder}>
+              {subtotal > 0 ? formatInvoiceMoney(totalAmount) : 'Remaining'}
+            </Text>
+          </View>
+
+          {formError ? <Text style={styles.formError}>{formError}</Text> : null}
+
+          <Pressable
+            style={[styles.doneButton, submitting && styles.doneDisabled]}
+            disabled={submitting}
+            onPress={() => void submit()}
+          >
+            {submitting ? (
+              <ActivityIndicator color={brandBlue} />
+            ) : (
+              <Text style={styles.doneText}>DONE</Text>
+            )}
+          </Pressable>
+        </ScrollView>
       </KeyboardAvoidingView>
     </Screen>
   );

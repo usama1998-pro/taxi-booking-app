@@ -8,33 +8,11 @@ import type { NavigationLike } from './getDriverRootNavigation';
 export const brandBlue = '#1E88E5';
 
 /** Shown in app chrome, headers, and pickup sign. */
-export const brandDisplayName = 'Taxi Barcelona 24';
+export const brandDisplayName = 'BarcelonaTaxi24';
 
-/**
- * Pickup-sign header (reference: bold “TAXI” + smaller “BARCELONA 24” under).
- */
+/** Pickup-sign header — single brand line. */
 export function getPickupSignBrandLines(): { headline: string; tagline: string } {
-  if (/^taxi\s+barcelona\s+24$/i.test(brandDisplayName.trim())) {
-    return { headline: 'TAXI', tagline: 'BARCELONA 24' };
-  }
-
-  const raw = brandDisplayName.trim().replace(/\s+/g, '');
-  const m = raw.match(/^(.+?)(\d+)$/);
-  const numPart = m ? m[2] : '';
-  const alpha = m ? m[1] : raw;
-
-  if (/taxi$/i.test(alpha)) {
-    const city = alpha.replace(/taxi$/i, '');
-    const cityUpper = (city || 'BARCELONA').toUpperCase();
-    const tagline = numPart ? `${cityUpper} ${numPart}` : cityUpper;
-    return { headline: 'TAXI', tagline };
-  }
-
-  if (numPart) {
-    return { headline: alpha.toUpperCase(), tagline: numPart };
-  }
-
-  return { headline: alpha.toUpperCase(), tagline: '' };
+  return { headline: brandDisplayName, tagline: '' };
 }
 
 export function HeaderBackToHomeButton({ navigation }: { navigation: NavigationLike }) {

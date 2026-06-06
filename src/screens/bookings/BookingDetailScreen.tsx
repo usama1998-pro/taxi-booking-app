@@ -41,6 +41,7 @@ import { getAppUiMessage } from '../../lib/apiErrors';
 import { logger } from '../../lib/logger';
 import { phoneForDisplay } from '../../lib/phoneFormat';
 import type { BookingDetailHostStackParamList } from '../../navigation/types';
+import { brandDisplayName } from '../../navigation/driverChrome';
 import { bookingsApi } from '../../services/bookings/bookingsApi';
 import type { Booking } from '../../types/booking';
 import { colors, spacing } from '../../theme';
@@ -416,7 +417,7 @@ export function BookingDetailScreen() {
               ) : null}
             </View>
             <Text style={styles.headerBrand} numberOfLines={1}>
-              TAXIBARCELONA24
+              {brandDisplayName}
             </Text>
             <View style={styles.headerRight}>
               <Pressable

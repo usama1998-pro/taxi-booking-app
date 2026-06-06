@@ -1,12 +1,12 @@
-import type { Booking } from '../types/booking';
-import type { InvoiceCreatePrefill } from '../types/invoice';
+import type { Booking } from "../types/booking";
+import type { InvoiceCreatePrefill } from "../types/invoice";
 
 import {
   bookingChildSeatsSummary,
   bookingDropoffLabel,
   bookingPickupLabel,
-} from './bookingFormat';
-import { phoneForDisplay } from './phoneFormat';
+} from "./bookingFormat";
+import { phoneForDisplay } from "./phoneFormat";
 
 function scheduledLocalYmd(iso: string): string | null {
   const d = new Date(iso);
@@ -14,8 +14,8 @@ function scheduledLocalYmd(iso: string): string | null {
     return null;
   }
   const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
 
@@ -25,24 +25,32 @@ function splitFlight(val: string): { airline: string; flightNo: string } {
   if (m) {
     return { airline: m[1].toUpperCase(), flightNo: m[2] };
   }
-  return { airline: '', flightNo: v };
+  return { airline: "", flightNo: v };
 }
 
 function cleanLocationLabel(s: string): string {
-  return s === '—' ? '' : s;
+  return s === "—" ? "" : s;
 }
 
 /**
  * Maps a loaded booking to new-invoice form defaults (customer, trip date, locations, price).
  */
 export function bookingToInvoicePrefill(b: Booking): InvoiceCreatePrefill {
-  const tripYmd = scheduledLocalYmd(b.scheduledTime) ?? '';
-  const fullName = (b.customerName?.trim() || b.user?.fullName?.trim() || '').trim();
-  const rawPhone = (b.customerPhone?.trim() || b.user?.phone?.trim() || '').trim();
-  const phone = rawPhone ? phoneForDisplay(rawPhone) : '';
+  const tripYmd = scheduledLocalYmd(b.scheduledTime) ?? "";
+  const fullName = (
+    b.customerName?.trim() ||
+    b.user?.fullName?.trim() ||
+    ""
+  ).trim();
+  const rawPhone = (
+    b.customerPhone?.trim() ||
+    b.user?.phone?.trim() ||
+    ""
+  ).trim();
+  const phone = rawPhone ? phoneForDisplay(rawPhone) : "";
   const pickupAddr = cleanLocationLabel(bookingPickupLabel(b));
   const dropAddr = cleanLocationLabel(bookingDropoffLabel(b));
-  const ref = b.bookingReference?.trim() ?? '';
+  const ref = b.bookingReference?.trim() ?? "";
   const seats = bookingChildSeatsSummary(b);
   const childSeatsSummary = seats ?? undefined;
   const passengerCount = Math.min(25, Math.max(1, b.passengerCount));
@@ -56,10 +64,10 @@ export function bookingToInvoicePrefill(b: Booking): InvoiceCreatePrefill {
       bookingReference: ref,
       pickupDateYmd: tripYmd,
       priceText: String(b.price),
-      pickupKind: 'AIRPORT',
+      pickupKind: "AIRPORT",
       pickupAirline: sp.airline,
       pickupFlightNo: sp.flightNo,
-      dropoffKind: 'LOCATION',
+      dropoffKind: "LOCATION",
       dropoffAddress: dropAddr,
       passengerCount,
       childSeatsSummary,
@@ -72,9 +80,9 @@ export function bookingToInvoicePrefill(b: Booking): InvoiceCreatePrefill {
     bookingReference: ref,
     pickupDateYmd: tripYmd,
     priceText: String(b.price),
-    pickupKind: 'LOCATION',
+    pickupKind: "LOCATION",
     pickupAddress: pickupAddr,
-    dropoffKind: 'LOCATION',
+    dropoffKind: "LOCATION",
     dropoffAddress: dropAddr,
     passengerCount,
     childSeatsSummary,

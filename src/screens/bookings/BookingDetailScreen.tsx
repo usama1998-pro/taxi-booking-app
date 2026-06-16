@@ -53,8 +53,8 @@ const HEADER_BLUE = '#2196F3';
 const ICON_BLACK = '#111827';
 const FOOTER_MUTED = '#9CA3AF';
 const SITE_URL = 'https://barcelonataxi24.com/';
-const ICON_SIZE = 20;
-const HEADER_ICON_SIZE = 22;
+const ICON_SIZE = 24;
+const HEADER_ICON_SIZE = 26;
 const QR_PX = 68;
 const ROW_FONT = 17;
 const ROW_LINE = 21;
@@ -506,16 +506,7 @@ export function BookingDetailScreen() {
               <Section title="Customer Information">
                 <CustomerNameRow
                   name={displayCustomerName}
-                  showViatorMail={viatorMail}
                   onEyePress={openPickupSign}
-                  onCopyName={async () => {
-                    const ok = await copyStringToClipboard(displayCustomerName);
-                    if (ok) {
-                      notifyCopiedAndroid();
-                    } else {
-                      Alert.alert('Copy failed', 'Could not copy to the clipboard.');
-                    }
-                  }}
                 />
                 {displayPhone ? (
                   <PhoneRow
@@ -616,34 +607,11 @@ function InfoRow({
 
 function CustomerNameRow({
   name,
-  showViatorMail,
   onEyePress,
-  onCopyName,
 }: {
   name: string;
-  showViatorMail?: boolean;
   onEyePress: () => void;
-  onCopyName: () => void;
 }) {
-  const [showTick, setShowTick] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-      }
-    };
-  }, []);
-
-  const flashTick = () => {
-    setShowTick(true);
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-    }
-    timerRef.current = setTimeout(() => setShowTick(false), COPY_TICK_MS);
-  };
-
   return (
     <View style={styles.infoRow}>
       <Text style={styles.infoLabel}>{toTitleCase('Customer Name')}:</Text>
@@ -651,14 +619,6 @@ function CustomerNameRow({
         <Text style={styles.infoValueFlex} numberOfLines={2}>
           {name}
         </Text>
-        {showViatorMail ? (
-          <Ionicons
-            name="mail"
-            size={ICON_SIZE}
-            color={HEADER_BLUE}
-            accessibilityLabel="Viator email booking"
-          />
-        ) : null}
         <Pressable
           onPress={onEyePress}
           hitSlop={10}
@@ -666,23 +626,7 @@ function CustomerNameRow({
           accessibilityLabel="Show pickup sign with customer name"
           style={styles.iconBtn}
         >
-          <Ionicons name="eye" size={ICON_SIZE} color={ICON_BLACK} />
-        </Pressable>
-        <Pressable
-          onPress={async () => {
-            await onCopyName();
-            flashTick();
-          }}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel="Copy customer name"
-          style={styles.iconBtn}
-        >
-          <Ionicons
-            name={showTick ? 'checkmark-circle' : 'copy'}
-            size={ICON_SIZE}
-            color={showTick ? colors.success : ICON_BLACK}
-          />
+          <Ionicons name="eye" size={30} color={ICON_BLACK} />
         </Pressable>
       </View>
     </View>
@@ -729,7 +673,7 @@ function PhoneRow({
           accessibilityLabel="Call customer"
           style={styles.phoneCircle}
         >
-          <Ionicons name="call" size={16} color="#FFFFFF" />
+          <Ionicons name="call" size={20} color="#FFFFFF" />
         </Pressable>
         <Text style={styles.infoValueFlex} selectable>
           {phone}
@@ -955,9 +899,9 @@ const styles = StyleSheet.create({
     padding: 2,
   },
   phoneCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: colors.success,
     alignItems: 'center',
     justifyContent: 'center',

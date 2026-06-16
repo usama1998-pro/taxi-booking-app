@@ -507,6 +507,14 @@ export function BookingDetailScreen() {
                 <CustomerNameRow
                   name={displayCustomerName}
                   onEyePress={openPickupSign}
+                  onCopyName={async () => {
+                    const ok = await copyStringToClipboard(displayCustomerName);
+                    if (ok) {
+                      notifyCopiedAndroid();
+                    } else {
+                      Alert.alert('Copy failed', 'Could not copy to the clipboard.');
+                    }
+                  }}
                 />
                 {displayPhone ? (
                   <PhoneRow
@@ -608,10 +616,31 @@ function InfoRow({
 function CustomerNameRow({
   name,
   onEyePress,
+  onCopyName,
 }: {
   name: string;
   onEyePress: () => void;
+  onCopyName: () => void;
 }) {
+  const [showTick, setShowTick] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
+
+  const flashTick = () => {
+    setShowTick(true);
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
+    timerRef.current = setTimeout(() => setShowTick(false), COPY_TICK_MS);
+  };
+
   return (
     <View style={styles.infoRow}>
       <Text style={styles.infoLabel}>{toTitleCase('Customer Name')}:</Text>
@@ -627,6 +656,22 @@ function CustomerNameRow({
           style={styles.iconBtn}
         >
           <Ionicons name="eye" size={30} color={ICON_BLACK} />
+        </Pressable>
+        <Pressable
+          onPress={async () => {
+            await onCopyName();
+            flashTick();
+          }}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Copy customer name"
+          style={styles.iconBtn}
+        >
+          <Ionicons
+            name={showTick ? 'checkmark-circle' : 'copy'}
+            size={ICON_SIZE}
+            color={showTick ? colors.success : ICON_BLACK}
+          />
         </Pressable>
       </View>
     </View>

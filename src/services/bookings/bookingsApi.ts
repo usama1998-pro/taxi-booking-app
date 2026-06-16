@@ -24,6 +24,8 @@ export const bookingsApi = {
       timeScope?: BookingListTimeScope;
       /** Pickup calendar day in server TZ (`YYYY-MM-DD`). */
       scheduledOn?: string;
+      /** Partial match on booking reference (server-side). */
+      bookingReference?: string;
     } = {},
   ): Promise<PaginatedBookings> {
     const page = params.page ?? 1;
@@ -37,6 +39,9 @@ export const bookingsApi = {
     }
     if (params.scheduledOn) {
       q.set('scheduledOn', params.scheduledOn);
+    }
+    if (params.bookingReference?.trim()) {
+      q.set('bookingReference', params.bookingReference.trim());
     }
     return apiGetJson<PaginatedBookings>(`/bookings?${q.toString()}`, token);
   },

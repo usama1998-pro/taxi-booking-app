@@ -132,6 +132,8 @@ export function BookingsListScreen() {
   byScopeRef.current = byScope;
   const filterDateRef = useRef(filterDate);
   filterDateRef.current = filterDate;
+  const debouncedBookingRefRef = useRef(debouncedBookingRefQuery);
+  debouncedBookingRefRef.current = debouncedBookingRefQuery;
 
   const scheduledOnForScope = useCallback((scope: BookingListTimeScope): string | undefined => {
     if (scope === 'current' || !filterDateRef.current) {
@@ -224,11 +226,14 @@ export function BookingsListScreen() {
       }));
       try {
         const scheduledOn = scheduledOnForScope(scope);
+        const bookingReference = debouncedBookingRefRef.current.trim() || undefined;
         const res = await bookingsApi.list(accessToken, {
           page: 1,
-          pageSize: scheduledOn ? DATE_FILTER_PAGE_SIZE : PAGE_SIZE,
-          timeScope: scope,
+          pageSize:
+            scheduledOn || bookingReference ? DATE_FILTER_PAGE_SIZE : PAGE_SIZE,
+          timeScope: bookingReference ? undefined : scope,
           scheduledOn,
+          bookingReference,
         });
         setByScope((prev) => ({
           ...prev,
@@ -266,11 +271,8 @@ export function BookingsListScreen() {
   );
 
   useEffect(() => {
-    if (active === 'current') {
-      return;
-    }
     void refreshScope(active);
-  }, [filterDate, active, refreshScope]);
+  }, [filterDate, active, debouncedBookingRefQuery, refreshScope]);
 
   const loadNextPage = useCallback(
     async (scope: BookingListTimeScope) => {
@@ -297,11 +299,14 @@ export function BookingsListScreen() {
       try {
         const nextPage = st.page + 1;
         const scheduledOn = scheduledOnForScope(scope);
+        const bookingReference = debouncedBookingRefRef.current.trim() || undefined;
         const res = await bookingsApi.list(accessToken, {
           page: nextPage,
-          pageSize: scheduledOn ? DATE_FILTER_PAGE_SIZE : PAGE_SIZE,
-          timeScope: scope,
+          pageSize:
+            scheduledOn || bookingReference ? DATE_FILTER_PAGE_SIZE : PAGE_SIZE,
+          timeScope: bookingReference ? undefined : scope,
           scheduledOn,
+          bookingReference,
         });
         setByScope((prev) => {
           const cur = prev[scope];
@@ -403,22 +408,9 @@ export function BookingsListScreen() {
 
   const section = byScope[active];
 
-  const filtered = useMemo(() => {
-    let rows = section.items;
-    const q = debouncedBookingRefQuery.trim().toLowerCase();
-    if (q) {
-      rows = rows.filter((b) =>
-        String(b.bookingReference ?? '')
-          .toLowerCase()
-          .includes(q),
-      );
-    }
-    return rows;
-  }, [section.items, debouncedBookingRefQuery]);
-
   const sections = useMemo((): Section[] => {
     const groups = new Map<string, Booking[]>();
-    for (const b of filtered) {
+    for (const b of section.items) {
       const k = bookingDayKeyFromIso(b.scheduledTime);
       if (!groups.has(k)) {
         groups.set(k, []);
@@ -436,10 +428,11 @@ export function BookingsListScreen() {
       dayKey: k,
       data: groups.get(k)!,
     }));
-  }, [filtered, active]);
+  }, [section.items, active]);
 
-  const emptyCopy =
-    active === 'past'
+  const emptyCopy = debouncedBookingRefQuery.trim()
+    ? 'No bookings match that reference.'
+    : active === 'past'
       ? 'No past trips yet.'
       : active === 'current'
         ? 'Nothing scheduled for today.'

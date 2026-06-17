@@ -26,7 +26,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '../../context/AuthContext';
 import { getAppUiMessage } from '../../lib/apiErrors';
-import { bookingDropoffLabel, bookingPickupLabel } from '../../lib/bookingFormat';
+import {
+  bookingDropoffLabel,
+  bookingPickupLabel,
+  bookingReturnTimeIso,
+  isDropoffAirportBooking,
+  isPickupAirportBooking,
+  pickupArrivalFlight,
+} from '../../lib/bookingFormat';
 import { phoneForDisplay } from '../../lib/phoneFormat';
 import {
   combineDateAndTime,
@@ -206,11 +213,14 @@ export function EditReservationScreen() {
 
     const pk = jsonKind(b.pickupLocation);
     const pu = readJsonRecord(b.pickupLocation);
-    if (pk === 'airport') {
+    const pickupIsAirport = isPickupAirportBooking(b) || pk === 'airport';
+    if (pickupIsAirport) {
       setPickupKind('airport');
       setPickupAirportLabel(jsonString(b.pickupLocation, 'label') || FIXED_AIRPORT_LABEL);
       setPickupAirline(jsonString(b.pickupLocation, 'airline'));
-      setPickupFlight(jsonString(b.pickupLocation, 'flight'));
+      setPickupFlight(
+        jsonString(b.pickupLocation, 'flight') || pickupArrivalFlight(b) || '',
+      );
       const meet =
         jsonString(b.pickupLocation, 'meetingAddress') ||
         (pu?.label !== FIXED_AIRPORT_LABEL ? jsonString(b.pickupLocation, 'label') : '');
@@ -226,20 +236,25 @@ export function EditReservationScreen() {
     }
 
     const dk = jsonKind(b.dropoffLocation);
-    if (dk === 'airport') {
+    const dropoffIsAirport = isDropoffAirportBooking(b) || dk === 'airport';
+    if (dropoffIsAirport) {
       setDropoffKind('airport');
       setDropoffSimpleStreet(false);
       setDropoffAirportLabel(jsonString(b.dropoffLocation, 'label') || FIXED_AIRPORT_LABEL);
       setDropoffDetail('');
-      setDropoffAirline('');
-      setDropoffFlight('');
+      setDropoffAirline(jsonString(b.dropoffLocation, 'airline'));
+      setDropoffFlight(
+        jsonString(b.dropoffLocation, 'flight') || b.flightNumber?.trim() || '',
+      );
+      const returnIso = bookingReturnTimeIso(b);
+      setDropoffTime(returnIso ? new Date(returnIso) : new Date(scheduled));
     } else {
       setDropoffKind('location');
       const label = jsonString(b.dropoffLocation, 'label');
       const da = jsonString(b.dropoffLocation, 'airline');
       const df = jsonString(b.dropoffLocation, 'flight');
       const isFixed = label === FIXED_AIRPORT_LABEL;
-      if (!isFixed && !da && !df && !b.returnTime) {
+      if (!isFixed && !da && !df && !bookingReturnTimeIso(b)) {
         setDropoffSimpleStreet(true);
         setDropoffAirportLabel(FIXED_AIRPORT_LABEL);
         setDropoffDetail(label || bookingDropoffLabel(b));
@@ -251,7 +266,9 @@ export function EditReservationScreen() {
         setDropoffAirline(da);
         setDropoffFlight(df);
         setDropoffDetail('');
-        setDropoffTime(b.returnTime ? new Date(b.returnTime) : new Date(scheduled));
+        setDropoffTime(
+          bookingReturnTimeIso(b) ? new Date(bookingReturnTimeIso(b)!) : new Date(scheduled),
+        );
       }
     }
   }, []);

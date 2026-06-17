@@ -26,14 +26,18 @@ import { Screen } from '../../components';
 import { BOOKING_TIME_ZONE } from '../../constants/timeZone';
 import { useAuth } from '../../context/AuthContext';
 import {
+  bookingChildSeatsSummary,
   bookingFromDisplay,
+  bookingHasReturnTrip,
   bookingPassengerLabel,
+  bookingReturnTimeIso,
+  bookingSourceAccessibilityLabel,
+  bookingSourceIcon,
   bookingToDisplay,
   dropoffDepartureDisplay,
   dropoffReturnFlightInfo,
   isDropoffAirportBooking,
   isPickupAirportBooking,
-  isViatorEmailBooking,
   pickupArrivalAirline,
   pickupArrivalFlight,
 } from '../../lib/bookingFormat';
@@ -354,10 +358,13 @@ export function BookingDetailScreen() {
     b.customerName?.trim() || b.user?.fullName?.trim() || bookingPassengerLabel(b);
   const displayCustomerName =
     b.customerName?.trim() || b.user?.fullName?.trim() || bookingPassengerLabel(b);
-  const viatorMail = isViatorEmailBooking(b);
+  const sourceIcon = bookingSourceIcon(b);
+  const sourceLabel = bookingSourceAccessibilityLabel(b);
   const displayPhone = b.customerPhone?.trim()
     ? phoneForDisplay(b.customerPhone.trim())
     : '';
+  const displayEmail =
+    b.customerEmail?.trim().toLowerCase() || b.user?.email?.trim().toLowerCase() || '';
 
   const openPickupSign = () => {
     navigation.navigate('PickupSign', { customerName: customerNameForSign });
@@ -384,6 +391,11 @@ export function BookingDetailScreen() {
   const dropoffAddress = bookingToDisplay(b);
   const dropoffFlightInfo = dropoffReturnFlightInfo(b);
   const dropoffDeparture = dropoffDepartureDisplay(b);
+  const childSeats = bookingChildSeatsSummary(b);
+  const arrivalFlight = pickupArrivalFlight(b);
+  const arrivalAirline = pickupArrivalAirline(b);
+  const returnTimeIso = bookingReturnTimeIso(b);
+  const hasReturnTrip = bookingHasReturnTrip(b);
 
   return (
     <View style={styles.root}>
@@ -407,14 +419,12 @@ export function BookingDetailScreen() {
               <Text style={styles.headerRes} numberOfLines={1}>
                 RES# {formatResNumber(b)}
               </Text>
-              {viatorMail ? (
-                <Ionicons
-                  name="mail"
-                  size={HEADER_ICON_SIZE}
-                  color="#FFFFFF"
-                  accessibilityLabel="Viator email booking"
-                />
-              ) : null}
+              <Ionicons
+                name={sourceIcon}
+                size={HEADER_ICON_SIZE}
+                color="#FFFFFF"
+                accessibilityLabel={sourceLabel}
+              />
             </View>
             <Text style={styles.headerBrand} numberOfLines={1}>
               {brandDisplayName}
@@ -452,16 +462,28 @@ export function BookingDetailScreen() {
               <Section title="Pickup Information">
                 <InfoRow label="Pickup Address" value={bookingFromDisplay(b)} />
                 <InfoRow label="Passengers" value={String(b.passengerCount)} />
+                <InfoRow label="Luggage" value={String(b.luggageCount)} />
                 <InfoRow label="Pickup Date" value={formatPickupDate(b.scheduledTime)} />
                 <InfoRow
                   label="Pickup Time"
                   value={formatPickupTime(b.scheduledTime)}
                   valueBold
                 />
-                {isPickupAirportBooking(b) ? (
+                {isPickupAirportBooking(b) || arrivalFlight || arrivalAirline ? (
                   <>
-                    <InfoRow label="Arrival airline" value={pickupArrivalAirline(b) ?? '—'} />
-                    <InfoRow label="Arrival flight" value={pickupArrivalFlight(b) ?? '—'} />
+                    <InfoRow label="Arrival airline" value={arrivalAirline ?? '—'} />
+                    <InfoRow label="Arrival flight" value={arrivalFlight ?? '—'} />
+                  </>
+                ) : null}
+                {childSeats ? <InfoRow label="Child seats" value={childSeats} /> : null}
+                {hasReturnTrip && returnTimeIso ? (
+                  <>
+                    <InfoRow label="Return Date" value={formatReturnDate(returnTimeIso)} />
+                    <InfoRow
+                      label="Return Time"
+                      value={formatReturnTime(returnTimeIso)}
+                      valueBold
+                    />
                   </>
                 ) : null}
                 <InfoRow label="Notes" value={b.note?.trim() || 'No'} />
@@ -479,7 +501,11 @@ export function BookingDetailScreen() {
                       : undefined
                   }
                 />
-                {isDropoffAirportBooking(b) ? (
+                {isDropoffAirportBooking(b) ||
+                dropoffFlightInfo?.flight ||
+                dropoffFlightInfo?.airline ||
+                dropoffDeparture?.timeIso ||
+                dropoffDeparture?.timeLabel ? (
                   <>
                     <InfoRow label="Departure airline" value={dropoffFlightInfo?.airline ?? '—'} />
                     <InfoRow label="Departure flight" value={dropoffFlightInfo?.flight ?? '—'} />
@@ -516,6 +542,7 @@ export function BookingDetailScreen() {
                     }
                   }}
                 />
+                {displayEmail ? <InfoRow label="Email" value={displayEmail} /> : null}
                 {displayPhone ? (
                   <PhoneRow
                     phone={displayPhone}

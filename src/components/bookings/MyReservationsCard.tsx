@@ -6,9 +6,10 @@ import {
   bookingFlightLine,
   bookingFromDisplayForList,
   bookingPassengerLabel,
+  bookingSourceAccessibilityLabel,
   bookingSourceIcon,
+  bookingSourceIconColor,
   bookingToDisplayForList,
-  isViatorEmailBooking,
 } from '../../lib/bookingFormat';
 import type { Booking } from '../../types/booking';
 import { BOOKING_TIME_ZONE } from '../../constants/timeZone';
@@ -56,13 +57,13 @@ export function MyReservationsCard({
   onComplete,
 }: Props) {
   const passenger = bookingPassengerLabel(booking);
-  const viatorMail = isViatorEmailBooking(booking);
   const sourceIcon = bookingSourceIcon(booking);
+  const sourceIconColor = bookingSourceIconColor(booking);
+  const sourceLabel = bookingSourceAccessibilityLabel(booking);
   const flight = bookingFlightLine(booking);
   const childSeats = bookingChildSeatsSummary(booking);
   const statusNorm = (booking.status ?? '').trim().toLowerCase();
   const isClosed = statusNorm === 'completed' || statusNorm === 'cancelled' || statusNorm === 'canceled';
-  const sourceIconColor = viatorMail ? brandBlue : actionGreen;
 
   return (
     <View style={styles.card}>
@@ -85,9 +86,7 @@ export function MyReservationsCard({
                 name={sourceIcon}
                 size={24}
                 color={sourceIconColor}
-                accessibilityLabel={
-                  viatorMail ? 'Viator email booking' : 'App booking'
-                }
+                accessibilityLabel={sourceLabel}
               />
             </View>
             <View style={styles.routeLine}>

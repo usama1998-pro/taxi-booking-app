@@ -266,27 +266,31 @@ export function bookingFlightLine(b: Booking): BookingFlightLine | null {
   return null;
 }
 
+function guestAppEmail(email: string): boolean {
+  return email.startsWith('guest.') && email.endsWith('@taxibarcelona24.guest');
+}
+
+/** Reservation created in the mobile app (guest email from phone). */
+export function isAppBooking(b: Booking): boolean {
+  const email = (b.customerEmail || b.user?.email || '').toLowerCase();
+  return guestAppEmail(email);
+}
+
 /** Reservation imported from a Viator booking email (BR- reference or tagged note). */
 export function isViatorEmailBooking(b: Booking): boolean {
-  const ref = (b.bookingReference ?? '').trim().toUpperCase();
-  if (ref.startsWith('BR-')) {
+  const email = (b.customerEmail || b.user?.email || '').toLowerCase();
+  if (guestAppEmail(email)) {
+    return false;
+  }
+  if (email.startsWith('viator.')) {
     return true;
   }
   const note = (b.note ?? '').trim();
   if (note.startsWith('[Viator')) {
     return true;
   }
-  const email = (b.customerEmail || b.user?.email || '').toLowerCase();
-  return email.startsWith('viator.');
-}
-
-/** Reservation created in the mobile app (guest email from phone). */
-export function isAppBooking(b: Booking): boolean {
-  if (isViatorEmailBooking(b)) {
-    return false;
-  }
-  const email = (b.customerEmail || b.user?.email || '').toLowerCase();
-  return email.includes('@taxibarcelona24.guest');
+  const ref = (b.bookingReference ?? '').trim().toUpperCase();
+  return ref.startsWith('BR-');
 }
 
 /** Reservation submitted via the public website (real customer email). */
@@ -326,6 +330,20 @@ export function bookingSourceIconColor(b: Booking): string {
     return '#43A047';
   }
   return '#F57C00';
+}
+
+/** Header + section bar color on the booking detail screen. */
+export function bookingDetailAccentColor(b: Booking): string {
+  if (isAppBooking(b)) {
+    return '#43A047';
+  }
+  if (isViatorEmailBooking(b)) {
+    return '#1E88E5';
+  }
+  if (isWebsiteBooking(b)) {
+    return '#F57C00';
+  }
+  return '#2196F3';
 }
 
 export function bookingPassengerLabel(b: Booking): string {

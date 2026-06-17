@@ -27,6 +27,7 @@ import { BOOKING_TIME_ZONE } from '../../constants/timeZone';
 import { useAuth } from '../../context/AuthContext';
 import {
   bookingChildSeatsSummary,
+  bookingDetailAccentColor,
   bookingFromDisplay,
   bookingHasReturnTrip,
   bookingPassengerLabel,
@@ -57,6 +58,7 @@ const HEADER_BLUE = '#2196F3';
 const ICON_BLACK = '#111827';
 const FOOTER_MUTED = '#9CA3AF';
 const SITE_URL = 'https://barcelonataxi24.com/';
+const SITE_DISPLAY = 'www.barcelonataxi24.com';
 const ICON_SIZE = 24;
 const HEADER_ICON_SIZE = 26;
 const QR_PX = 68;
@@ -360,11 +362,10 @@ export function BookingDetailScreen() {
     b.customerName?.trim() || b.user?.fullName?.trim() || bookingPassengerLabel(b);
   const sourceIcon = bookingSourceIcon(b);
   const sourceLabel = bookingSourceAccessibilityLabel(b);
+  const accentColor = bookingDetailAccentColor(b);
   const displayPhone = b.customerPhone?.trim()
     ? phoneForDisplay(b.customerPhone.trim())
     : '';
-  const displayEmail =
-    b.customerEmail?.trim().toLowerCase() || b.user?.email?.trim().toLowerCase() || '';
 
   const openPickupSign = () => {
     navigation.navigate('PickupSign', { customerName: customerNameForSign });
@@ -414,7 +415,7 @@ export function BookingDetailScreen() {
           options={{ format: 'png', quality: 1 }}
           style={[styles.screenshotCapture, { minHeight: scrollMinHeight }]}
         >
-          <View style={[styles.appHeader, { paddingTop: insets.top }]}>
+          <View style={[styles.appHeader, { paddingTop: insets.top, backgroundColor: accentColor }]}>
             <View style={styles.headerLeft}>
               <Text style={styles.headerRes} numberOfLines={1}>
                 RES# {formatResNumber(b)}
@@ -459,7 +460,7 @@ export function BookingDetailScreen() {
 
           <View style={[styles.fillColumn, { minHeight: bodyMinHeight }]}>
             <View style={styles.sectionsBlock}>
-              <Section title="Pickup Information">
+              <Section title="Pickup Information" accentColor={accentColor}>
                 <InfoRow label="Pickup Address" value={bookingFromDisplay(b)} />
                 <InfoRow label="Passengers" value={String(b.passengerCount)} />
                 <InfoRow label="Luggage" value={String(b.luggageCount)} />
@@ -489,10 +490,11 @@ export function BookingDetailScreen() {
                 <InfoRow label="Notes" value={b.note?.trim() || 'No'} />
               </Section>
 
-              <Section title="Dropoff Information">
+              <Section title="Dropoff Information" accentColor={accentColor}>
                 <InfoRow
                   label="Dropoff Address"
                   value={dropoffAddress}
+                  accentColor={accentColor}
                   onPress={
                     dropoffAddress && dropoffAddress !== '—'
                       ? () => {
@@ -529,7 +531,7 @@ export function BookingDetailScreen() {
                 ) : null}
               </Section>
 
-              <Section title="Customer Information">
+              <Section title="Customer Information" accentColor={accentColor}>
                 <CustomerNameRow
                   name={displayCustomerName}
                   onEyePress={openPickupSign}
@@ -542,7 +544,6 @@ export function BookingDetailScreen() {
                     }
                   }}
                 />
-                {displayEmail ? <InfoRow label="Email" value={displayEmail} /> : null}
                 {displayPhone ? (
                   <PhoneRow
                     phone={displayPhone}
@@ -581,7 +582,7 @@ export function BookingDetailScreen() {
             <View style={styles.footer}>
               <Image source={{ uri: qrUri }} style={styles.qr} resizeMode="contain" />
               <View style={styles.footerCenter}>
-                <Text style={styles.footerSite}>www.taxibarcelona24.com</Text>
+                <Text style={styles.footerSite}>{SITE_DISPLAY}</Text>
               </View>
               <Text style={styles.footerTime}>{viewedAtLabel}</Text>
             </View>
@@ -592,10 +593,18 @@ export function BookingDetailScreen() {
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({
+  title,
+  children,
+  accentColor,
+}: {
+  title: string;
+  children: ReactNode;
+  accentColor: string;
+}) {
   return (
     <View style={styles.section}>
-      <View style={styles.sectionBar}>
+      <View style={[styles.sectionBar, { backgroundColor: accentColor }]}>
         <Text style={styles.sectionBarText}>{title}</Text>
       </View>
       <View style={styles.sectionBody}>{children}</View>
@@ -608,16 +617,18 @@ function InfoRow({
   value,
   onPress,
   valueBold,
+  accentColor = HEADER_BLUE,
 }: {
   label: string;
   value: string;
   onPress?: () => void;
   valueBold?: boolean;
+  accentColor?: string;
 }) {
   const valueStyle = [
     styles.infoValue,
     valueBold ? styles.infoValueBold : null,
-    onPress ? styles.infoValueLink : null,
+    onPress ? [styles.infoValueLink, { color: accentColor }] : null,
   ];
   const content = (
     <>
@@ -854,7 +865,6 @@ const styles = StyleSheet.create({
   appHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: HEADER_BLUE,
     paddingHorizontal: spacing.sm,
     paddingBottom: 8,
     gap: spacing.xs,
@@ -905,7 +915,6 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   sectionBar: {
-    backgroundColor: HEADER_BLUE,
     paddingVertical: 8,
     paddingHorizontal: 10,
   },
@@ -949,7 +958,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   infoValueLink: {
-    color: HEADER_BLUE,
     textDecorationLine: 'underline',
   },
   infoValueFlex: {

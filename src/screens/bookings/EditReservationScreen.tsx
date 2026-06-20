@@ -36,11 +36,8 @@ import {
 } from '../../lib/bookingFormat';
 import { phoneForDisplay } from '../../lib/phoneFormat';
 import {
-  combineDateAndTime,
-  isPickupInPast,
-  minimumPickupDate,
-  minimumPickupTimeForDate,
-  PICKUP_IN_PAST_MESSAGE,
+  bookingPickerDatesFromIso,
+  combineBookingDateAndTimeToIso,
 } from '../../lib/pickupDateTime';
 import { getDriverRootNavigation } from '../../navigation/getDriverRootNavigation';
 import type { BookingDetailHostStackParamList } from '../../navigation/types';
@@ -56,6 +53,31 @@ const KEYBOARD_SCROLL_EXTRA_PAD = 280;
 const MAX_PASSENGERS_EDIT = 25;
 const darkerBlue = '#1565C0';
 const FIXED_AIRPORT_LABEL = 'Barcelona-El Prat Airport';
+const BARCELONA_AIRPORT_LABEL = /^Barcelona[- ]?El Prat/i;
+
+function normalizeAirportLabelForEdit(label: string): string {
+  const trimmed = label.trim();
+  if (!trimmed) {
+    return FIXED_AIRPORT_LABEL;
+  }
+  if (BARCELONA_AIRPORT_LABEL.test(trimmed)) {
+    return FIXED_AIRPORT_LABEL;
+  }
+  return trimmed;
+}
+
+function pickupMeetingAddressFromJson(pickupLocation: unknown): string {
+  const meeting = jsonString(pickupLocation, 'meetingAddress').trim();
+  if (!meeting) {
+    return '';
+  }
+  const label = jsonString(pickupLocation, 'label').trim();
+  const normalizedLabel = normalizeAirportLabelForEdit(label);
+  if (meeting === label || meeting === normalizedLabel) {
+    return '';
+  }
+  return meeting;
+}
 
 type LocationKind = 'location' | 'airport';
 
@@ -195,14 +217,14 @@ export function EditReservationScreen() {
   }, [navigation]);
 
   const scheduledIso = useMemo(
-    () => combineDateAndTime(puDate, puTime).toISOString(),
+    () => combineBookingDateAndTimeToIso(puDate, puTime),
     [puDate, puTime],
   );
 
   const hydrate = useCallback((b: Booking) => {
-    const scheduled = new Date(b.scheduledTime);
-    setPuDate(scheduled);
-    setPuTime(scheduled);
+    const { date, time } = bookingPickerDatesFromIso(b.scheduledTime);
+    setPuDate(date);
+    setPuTime(time);
     setPassengerCount(Math.min(MAX_PASSENGERS_EDIT, Math.max(1, b.passengerCount)));
     setFullName(b.customerName?.trim() || b.user?.fullName || '');
     const rawPhone = b.customerPhone?.trim() || b.user?.phone || '';
@@ -212,19 +234,16 @@ export function EditReservationScreen() {
     setNotes(b.note ?? '');
 
     const pk = jsonKind(b.pickupLocation);
-    const pu = readJsonRecord(b.pickupLocation);
     const pickupIsAirport = isPickupAirportBooking(b) || pk === 'airport';
     if (pickupIsAirport) {
       setPickupKind('airport');
-      setPickupAirportLabel(jsonString(b.pickupLocation, 'label') || FIXED_AIRPORT_LABEL);
+      const pickupLabel = jsonString(b.pickupLocation, 'label');
+      setPickupAirportLabel(normalizeAirportLabelForEdit(pickupLabel || FIXED_AIRPORT_LABEL));
       setPickupAirline(jsonString(b.pickupLocation, 'airline'));
       setPickupFlight(
         jsonString(b.pickupLocation, 'flight') || pickupArrivalFlight(b) || '',
       );
-      const meet =
-        jsonString(b.pickupLocation, 'meetingAddress') ||
-        (pu?.label !== FIXED_AIRPORT_LABEL ? jsonString(b.pickupLocation, 'label') : '');
-      setPickupMeeting(meet);
+      setPickupMeeting(pickupMeetingAddressFromJson(b.pickupLocation));
       setPickupDetail('');
     } else {
       setPickupKind('location');
@@ -247,7 +266,7 @@ export function EditReservationScreen() {
         jsonString(b.dropoffLocation, 'flight') || b.flightNumber?.trim() || '',
       );
       const returnIso = bookingReturnTimeIso(b);
-      setDropoffTime(returnIso ? new Date(returnIso) : new Date(scheduled));
+      setDropoffTime(returnIso ? bookingPickerDatesFromIso(returnIso).time : time);
     } else {
       setDropoffKind('location');
       const label = jsonString(b.dropoffLocation, 'label');
@@ -267,7 +286,9 @@ export function EditReservationScreen() {
         setDropoffFlight(df);
         setDropoffDetail('');
         setDropoffTime(
-          bookingReturnTimeIso(b) ? new Date(bookingReturnTimeIso(b)!) : new Date(scheduled),
+          bookingReturnTimeIso(b)
+            ? bookingPickerDatesFromIso(bookingReturnTimeIso(b)!).time
+            : time,
         );
       }
     }
@@ -303,16 +324,6 @@ export function EditReservationScreen() {
     };
   }, [accessToken, uuid, hydrate]);
 
-  const pickerMinimumDate = useMemo(() => {
-    if (pickerTarget === 'date') {
-      return minimumPickupDate();
-    }
-    if (pickerTarget === 'time') {
-      return minimumPickupTimeForDate(puDate);
-    }
-    return undefined;
-  }, [pickerTarget, puDate]);
-
   const onPickerChange = useCallback(
     (event: DateTimePickerEvent, selected?: Date) => {
       if (Platform.OS === 'android') {
@@ -325,16 +336,14 @@ export function EditReservationScreen() {
         return;
       }
       if (pickerTarget === 'time') {
-        const minTime = minimumPickupTimeForDate(puDate);
-        setPuTime(minTime && selected < minTime ? minTime : selected);
+        setPuTime(selected);
       } else if (pickerTarget === 'date') {
-        const min = minimumPickupDate();
-        setPuDate(selected < min ? min : selected);
+        setPuDate(selected);
       } else if (pickerTarget === 'dropoffTime') {
         setDropoffTime(selected);
       }
     },
-    [pickerTarget, puDate],
+    [pickerTarget],
   );
 
   const adjustPassengers = useCallback((delta: number) => {
@@ -353,10 +362,6 @@ export function EditReservationScreen() {
     }
     if (!customerEmailKeep.trim()) {
       Alert.alert('Required', 'Booking is missing a customer email in our records.');
-      return;
-    }
-    if (isPickupInPast(puDate, puTime)) {
-      Alert.alert('Invalid pickup', PICKUP_IN_PAST_MESSAGE);
       return;
     }
     let pickupLocation: Record<string, unknown>;
@@ -412,7 +417,7 @@ export function EditReservationScreen() {
       if (df) {
         dropoffLocation.flight = df;
       }
-      returnTime = combineDateAndTime(puDate, dropoffTime).toISOString();
+      returnTime = combineBookingDateAndTimeToIso(puDate, dropoffTime);
     }
 
     const flightNumber =
@@ -877,7 +882,6 @@ export function EditReservationScreen() {
           }
           mode={pickerTarget === 'date' ? 'date' : 'time'}
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          minimumDate={pickerTarget === 'dropoffTime' ? undefined : pickerMinimumDate}
           onChange={onPickerChange}
         />
       )}

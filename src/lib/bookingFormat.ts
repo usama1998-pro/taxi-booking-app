@@ -212,13 +212,18 @@ export function dropoffReturnFlightInfo(b: Booking): DropoffReturnFlightInfo | n
     flight = b.flightNumber?.trim() || null;
   }
   const returnTimeIso = bookingReturnTimeIso(b);
+  const isViator = isViatorEmailBooking(b);
   const departureTimeLabel =
-    typeof o?.departureTime === 'string' && o.departureTime.trim()
+    !isViator &&
+    typeof o?.departureTime === 'string' &&
+    o.departureTime.trim()
       ? o.departureTime.trim()
       : null;
   const departureDateIso =
     returnTimeIso ??
-    (isDropoffAirportBooking(b) && b.scheduledTime?.trim() ? b.scheduledTime.trim() : null);
+    (!isViator && isDropoffAirportBooking(b) && b.scheduledTime?.trim()
+      ? b.scheduledTime.trim()
+      : null);
   if (!airline && !flight && !returnTimeIso && !departureTimeLabel && !departureDateIso) {
     return null;
   }
@@ -233,6 +238,9 @@ export type DropoffDepartureDisplay = {
 
 /** Departure date/time for airport drop-off rows on the driver detail screen. */
 export function dropoffDepartureDisplay(b: Booking): DropoffDepartureDisplay | null {
+  if (isViatorEmailBooking(b)) {
+    return null;
+  }
   if (!isDropoffAirportBooking(b)) {
     return null;
   }
@@ -358,6 +366,9 @@ export function bookingPassengerLabel(b: Booking): string {
 
 /** Human-readable child seat request for drivers and summaries. */
 export function bookingChildSeatsSummary(b: Booking): string | null {
+  if (!isWebsiteBooking(b)) {
+    return null;
+  }
   const infant = b.infantCarrierCount ?? 0;
   const child = b.childSeatCount ?? 0;
   const booster = b.boosterCount ?? 0;

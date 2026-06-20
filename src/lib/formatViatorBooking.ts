@@ -89,7 +89,6 @@ export function buildViatorBookingDetailRows(
   const departureParts = [
     info.departureAirline,
     info.departureFlightNo ? `flight ${info.departureFlightNo}` : undefined,
-    info.departureTime,
   ].filter(Boolean);
   if (departureParts.length > 0) {
     pushRow(rows, 'Departure', departureParts.join(' · '));

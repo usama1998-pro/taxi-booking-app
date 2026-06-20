@@ -7,6 +7,7 @@ import {
   bookingPassengerLabel,
   bookingToDisplayForList,
   formatMoney,
+  isWebsiteBooking,
 } from '../../lib/bookingFormat';
 import type { Booking } from '../../types/booking';
 import { colors, spacing, typography } from '../../theme';
@@ -59,7 +60,9 @@ export function BookingListRow({ booking, onPress, onPassengerNamePress }: Booki
         <Text style={styles.status}>{booking.status}</Text>
         <View style={styles.footerRight}>
           <Text style={styles.meta} numberOfLines={2}>
-            {booking.passengerCount} pax · {booking.luggageCount} bags
+            {isWebsiteBooking(booking)
+              ? `${booking.passengerCount} pax · ${booking.luggageCount} bags`
+              : `${booking.passengerCount} pax`}
           </Text>
           {childSeats ? (
             <Text style={styles.childSeatsLine} numberOfLines={4}>

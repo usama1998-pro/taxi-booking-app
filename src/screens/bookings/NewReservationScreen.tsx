@@ -23,11 +23,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getDriverRootNavigation } from '../../navigation/getDriverRootNavigation';
 import { getAppUiMessage } from '../../lib/apiErrors';
 import {
-  combineDateAndTime,
-  isPickupInPast,
-  minimumPickupDate,
-  minimumPickupTimeForDate,
-  PICKUP_IN_PAST_MESSAGE,
+  combineBookingDateAndTimeToIso,
 } from '../../lib/pickupDateTime';
 import { bookingsApi } from '../../services/bookings/bookingsApi';
 import { spacing, typography } from '../../theme';
@@ -149,19 +145,9 @@ export function NewReservationScreen() {
   }, [navigation]);
 
   const scheduledIso = useMemo(
-    () => combineDateAndTime(puDate, puTime).toISOString(),
+    () => combineBookingDateAndTimeToIso(puDate, puTime),
     [puDate, puTime],
   );
-
-  const pickerMinimumDate = useMemo(() => {
-    if (pickerTarget === 'date') {
-      return minimumPickupDate();
-    }
-    if (pickerTarget === 'time') {
-      return minimumPickupTimeForDate(puDate);
-    }
-    return undefined;
-  }, [pickerTarget, puDate]);
 
   const onPickerChange = useCallback(
     (event: DateTimePickerEvent, selected?: Date) => {
@@ -175,18 +161,12 @@ export function NewReservationScreen() {
         return;
       }
       if (pickerTarget === 'time') {
-        const next = selected;
-        if (minimumPickupTimeForDate(puDate) && next < minimumPickupTimeForDate(puDate)!) {
-          setPuTime(minimumPickupTimeForDate(puDate)!);
-        } else {
-          setPuTime(next);
-        }
+        setPuTime(selected);
       } else if (pickerTarget === 'date') {
-        const min = minimumPickupDate();
-        setPuDate(selected < min ? min : selected);
+        setPuDate(selected);
       }
     },
-    [pickerTarget, puDate],
+    [pickerTarget],
   );
 
   const adjustPassengers = useCallback((delta: number) => {
@@ -594,7 +574,6 @@ export function NewReservationScreen() {
           value={pickerTarget === 'time' ? puTime : puDate}
           mode={pickerTarget === 'time' ? 'time' : 'date'}
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          minimumDate={pickerMinimumDate}
           onChange={onPickerChange}
         />
       )}

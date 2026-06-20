@@ -30,6 +30,7 @@ import { getAppUiMessage } from '../../lib/apiErrors';
 import {
   bookingDayKeyFromDate,
   bookingDayKeyFromIso,
+  currentListWindowKey,
 } from '../../lib/bookingDayKey';
 import { logger } from '../../lib/logger';
 import type { BookingsStackParamList } from '../../navigation/types';
@@ -109,7 +110,7 @@ export function BookingsListScreen() {
   const appendLockRef = useRef(false);
   const onEndReachedDuringMomentumRef = useRef(false);
 
-  const [active, setActive] = useState<BookingListTimeScope>('upcoming');
+  const [active, setActive] = useState<BookingListTimeScope>('current');
   const [byScope, setByScope] = useState<Record<BookingListTimeScope, SectionState>>({
     past: emptySection(),
     current: emptySection(),
@@ -135,6 +136,7 @@ export function BookingsListScreen() {
   filterDateRef.current = filterDate;
   const debouncedBookingRefRef = useRef(debouncedBookingRefQuery);
   debouncedBookingRefRef.current = debouncedBookingRefQuery;
+  const currentWindowKeyRef = useRef(currentListWindowKey());
 
   const scheduledOnForScope = useCallback((scope: BookingListTimeScope): string | undefined => {
     if (scope === 'current' || !filterDateRef.current) {
@@ -274,6 +276,21 @@ export function BookingsListScreen() {
   useEffect(() => {
     void refreshScope(active);
   }, [filterDate, active, debouncedBookingRefQuery, refreshScope]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const nextKey = currentListWindowKey();
+      if (nextKey === currentWindowKeyRef.current) {
+        return;
+      }
+      currentWindowKeyRef.current = nextKey;
+      const scope = activeRef.current;
+      if (scope === 'current' || scope === 'past') {
+        void refreshScope(scope);
+      }
+    }, 60_000);
+    return () => clearInterval(id);
+  }, [refreshScope]);
 
   const loadNextPage = useCallback(
     async (scope: BookingListTimeScope) => {

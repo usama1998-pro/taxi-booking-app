@@ -39,6 +39,7 @@ import {
   dropoffReturnFlightInfo,
   isDropoffAirportBooking,
   isPickupAirportBooking,
+  isWebsiteBooking,
   pickupArrivalAirline,
   pickupArrivalFlight,
 } from '../../lib/bookingFormat';
@@ -463,7 +464,9 @@ export function BookingDetailScreen() {
               <Section title="Pickup Information" accentColor={accentColor}>
                 <InfoRow label="Pickup Address" value={bookingFromDisplay(b)} />
                 <InfoRow label="Passengers" value={String(b.passengerCount)} />
-                <InfoRow label="Luggage" value={String(b.luggageCount)} />
+                {isWebsiteBooking(b) ? (
+                  <InfoRow label="Luggage" value={String(b.luggageCount)} />
+                ) : null}
                 <InfoRow label="Pickup Date" value={formatPickupDate(b.scheduledTime)} />
                 <InfoRow
                   label="Pickup Time"
@@ -506,27 +509,30 @@ export function BookingDetailScreen() {
                 {isDropoffAirportBooking(b) ||
                 dropoffFlightInfo?.flight ||
                 dropoffFlightInfo?.airline ||
-                dropoffDeparture?.timeIso ||
-                dropoffDeparture?.timeLabel ? (
+                dropoffDeparture ? (
                   <>
                     <InfoRow label="Departure airline" value={dropoffFlightInfo?.airline ?? '—'} />
                     <InfoRow label="Departure flight" value={dropoffFlightInfo?.flight ?? '—'} />
-                    <InfoRow
-                      label="Departure Date"
-                      value={
-                        dropoffDeparture?.dateIso
-                          ? formatReturnDate(dropoffDeparture.dateIso)
-                          : '—'
-                      }
-                    />
-                    <InfoRow
-                      label="Departure Time"
-                      value={
-                        dropoffDeparture?.timeIso
-                          ? formatReturnTime(dropoffDeparture.timeIso)
-                          : dropoffDeparture?.timeLabel ?? '—'
-                      }
-                    />
+                    {dropoffDeparture ? (
+                      <>
+                        <InfoRow
+                          label="Departure Date"
+                          value={
+                            dropoffDeparture.dateIso
+                              ? formatReturnDate(dropoffDeparture.dateIso)
+                              : '—'
+                          }
+                        />
+                        <InfoRow
+                          label="Departure Time"
+                          value={
+                            dropoffDeparture.timeIso
+                              ? formatReturnTime(dropoffDeparture.timeIso)
+                              : dropoffDeparture.timeLabel ?? '—'
+                          }
+                        />
+                      </>
+                    ) : null}
                   </>
                 ) : null}
               </Section>

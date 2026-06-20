@@ -141,7 +141,7 @@ export function MyReservationsCard({
           onPress={onEdit}
           style={({ pressed }) => [styles.btnGrey, pressed && styles.pressed]}
         >
-          <Ionicons name="pencil" size={18} color="#FFFFFF" />
+          <Ionicons name="pencil" size={22} color="#FFFFFF" />
         </Pressable>
         <Pressable
           accessibilityRole="button"
@@ -149,7 +149,7 @@ export function MyReservationsCard({
           onPress={onDelete}
           style={({ pressed }) => [styles.btnRed, pressed && styles.pressed]}
         >
-          <Ionicons name="trash" size={18} color="#FFFFFF" />
+          <Ionicons name="trash" size={22} color="#FFFFFF" />
         </Pressable>
         {showCompleteButton && !isClosed ? (
           <Pressable
@@ -158,7 +158,7 @@ export function MyReservationsCard({
             onPress={onComplete}
             style={({ pressed }) => [styles.btnGreen, pressed && styles.pressed]}
           >
-            <Ionicons name="checkmark" size={18} color="#FFFFFF" />
+            <Ionicons name="checkmark" size={24} color="#FFFFFF" />
           </Pressable>
         ) : null}
       </View>
@@ -280,48 +280,57 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
     marginTop: spacing.sm,
-    paddingTop: spacing.xs,
+    paddingTop: spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#E0E0E0',
   },
   btnBlue: {
     backgroundColor: brandBlue,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 4,
-    minWidth: 56,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    minWidth: 72,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
   btnBlueText: {
     color: '#FFFFFF',
     fontWeight: '800',
-    fontSize: 15,
+    fontSize: 16,
     letterSpacing: 0.3,
   },
   btnGrey: {
     backgroundColor: actionGrey,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+    minWidth: 44,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
   btnRed: {
     backgroundColor: actionRed,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+    minWidth: 44,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
   btnGreen: {
     backgroundColor: actionGreen,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+    minWidth: 44,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },

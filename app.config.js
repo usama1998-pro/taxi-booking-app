@@ -5,7 +5,7 @@ module.exports = ({ config }) => ({
   ...config,
   extra: {
     ...(config.extra ?? {}),
-    BASE_API_URL: (process.env.BASE_API_URL ?? 'http://localhost:3000').replace(/\/$/, ''),
+    BASE_API_URL: (process.env.BASE_API_URL ?? 'http://localhost:8000').replace(/\/$/, ''),
     BOOKING_TIME_ZONE: process.env.BOOKING_TIME_ZONE ?? 'Europe/Madrid',
   },
 });

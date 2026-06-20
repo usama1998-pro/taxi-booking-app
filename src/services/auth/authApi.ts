@@ -1,4 +1,5 @@
-import { API_BASE_URL } from '../../constants/config';
+import { buildApiUrl } from '../../constants/config';
+import { parseJsonErrorBody } from '../../lib/apiErrors';
 import { logger } from '../../lib/logger';
 
 export class AuthRequestError extends Error {
@@ -46,12 +47,9 @@ export type DriverProfileDto = {
 async function readErrorMessage(res: Response): Promise<string> {
   const text = await res.text();
   try {
-    const j = JSON.parse(text) as { message?: unknown };
-    if (Array.isArray(j.message)) {
-      return j.message.map(String).join('\n');
-    }
-    if (typeof j.message === 'string') {
-      return j.message;
+    const parsed = parseJsonErrorBody(JSON.parse(text));
+    if (parsed) {
+      return parsed;
     }
   } catch {
     /* ignore */
@@ -76,7 +74,7 @@ async function jsonRequest<T>(
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const url = `${API_BASE_URL}${path}`;
+  const url = buildApiUrl(path);
   logger.debug('Auth API request', { method: method ?? 'GET', path });
 
   let res: Response;

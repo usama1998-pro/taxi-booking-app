@@ -107,6 +107,7 @@ export function BookingsListScreen() {
   const insets = useSafeAreaInsets();
   const listRef = useRef<SectionList<Booking, Section>>(null);
   const appendLockRef = useRef(false);
+  const onEndReachedDuringMomentumRef = useRef(false);
 
   const [active, setActive] = useState<BookingListTimeScope>('upcoming');
   const [byScope, setByScope] = useState<Record<BookingListTimeScope, SectionState>>({
@@ -231,7 +232,7 @@ export function BookingsListScreen() {
           page: 1,
           pageSize:
             scheduledOn || bookingReference ? DATE_FILTER_PAGE_SIZE : PAGE_SIZE,
-          timeScope: bookingReference ? undefined : scope,
+          timeScope: scope,
           scheduledOn,
           bookingReference,
         });
@@ -283,7 +284,11 @@ export function BookingsListScreen() {
       if (st.loading || st.loadingMore || st.items.length === 0) {
         return;
       }
-      if (st.totalPages > 0 && st.page >= st.totalPages) {
+      const hasMore =
+        st.totalPages > 0
+          ? st.page < st.totalPages
+          : st.total > st.items.length;
+      if (!hasMore) {
         return;
       }
 
@@ -304,7 +309,7 @@ export function BookingsListScreen() {
           page: nextPage,
           pageSize:
             scheduledOn || bookingReference ? DATE_FILTER_PAGE_SIZE : PAGE_SIZE,
-          timeScope: bookingReference ? undefined : scope,
+          timeScope: scope,
           scheduledOn,
           bookingReference,
         });
@@ -403,10 +408,26 @@ export function BookingsListScreen() {
   }, [runFullRefresh]);
 
   const onEndReached = useCallback(() => {
+    if (onEndReachedDuringMomentumRef.current) {
+      return;
+    }
+    onEndReachedDuringMomentumRef.current = true;
     void loadNextPage(activeRef.current);
   }, [loadNextPage]);
 
+  const onMomentumScrollBegin = useCallback(() => {
+    onEndReachedDuringMomentumRef.current = false;
+  }, []);
+
   const section = byScope[active];
+
+  const canLoadMore =
+    section.items.length > 0 &&
+    !section.loading &&
+    !section.loadingMore &&
+    (section.totalPages > 0
+      ? section.page < section.totalPages
+      : section.total > section.items.length);
 
   const sections = useMemo((): Section[] => {
     const groups = new Map<string, Booking[]>();
@@ -607,9 +628,39 @@ export function BookingsListScreen() {
   );
 
   const listFooter =
-    section.loadingMore ? (
-      <View style={styles.footerLoader}>
-        <ActivityIndicator color={brandBlue} />
+    section.items.length > 0 && !section.loading ? (
+      <View style={styles.footerWrap}>
+        {section.total > 0 ? (
+          <Text style={styles.footerMeta}>
+            Showing {section.items.length} of {section.total} booking
+            {section.total === 1 ? '' : 's'}
+          </Text>
+        ) : null}
+        {canLoadMore ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Load more bookings"
+            disabled={section.loadingMore}
+            onPress={() => void loadNextPage(active)}
+            style={({ pressed }) => [
+              styles.loadMoreBtn,
+              (pressed || section.loadingMore) && styles.pressed,
+            ]}
+          >
+            {section.loadingMore ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.loadMoreBtnText}>Load more</Text>
+            )}
+          </Pressable>
+        ) : section.loadingMore ? (
+          <View style={styles.footerLoader}>
+            <ActivityIndicator color={brandBlue} />
+          </View>
+        ) : null}
+        {section.loadMoreError ? (
+          <Text style={styles.footerError}>{section.loadMoreError}</Text>
+        ) : null}
       </View>
     ) : section.loadMoreError ? (
       <Text style={styles.footerError}>{section.loadMoreError}</Text>
@@ -637,7 +688,8 @@ export function BookingsListScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={brandBlue} />
           }
           onEndReached={onEndReached}
-          onEndReachedThreshold={1}
+          onEndReachedThreshold={0.35}
+          onMomentumScrollBegin={onMomentumScrollBegin}
           ListFooterComponent={listFooter}
           ListEmptyComponent={
             section.loading ? (
@@ -902,6 +954,30 @@ const styles = StyleSheet.create({
   footerLoader: {
     paddingVertical: spacing.lg,
     alignItems: 'center',
+  },
+  footerWrap: {
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  footerMeta: {
+    ...typography.caption,
+    color: '#616161',
+    textAlign: 'center',
+  },
+  loadMoreBtn: {
+    minWidth: 160,
+    paddingVertical: 12,
+    paddingHorizontal: spacing.lg,
+    borderRadius: 8,
+    backgroundColor: brandBlue,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadMoreBtnText: {
+    ...typography.body,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   footerError: {
     ...typography.caption,

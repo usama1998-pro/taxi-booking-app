@@ -2,7 +2,7 @@ import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Alert, Platform } from 'react-native';
 
-import { API_BASE_URL } from '../constants/config';
+import { buildApiUrl } from '../constants/config';
 import { ApiRequestError, readResponseErrorMessage } from './apiErrors';
 
 function uint8ToBase64(bytes: Uint8Array): string {
@@ -102,7 +102,7 @@ export async function downloadInvoicePdf(
   }
 
   const path = `/drivers/me/invoices/${invoiceId}/pdf`;
-  const url = `${API_BASE_URL}${path}`;
+  const url = buildApiUrl(path);
 
   let res: Response;
   try {

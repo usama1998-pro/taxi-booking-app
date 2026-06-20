@@ -381,6 +381,7 @@ export function InvoiceCreateScreen() {
         dropoffAddress: dropoffKind === 'LOCATION' ? dropoffAddress.trim() : undefined,
         dropoffAirline: dropoffKind === 'AIRPORT' ? dropoffAirline.trim() : undefined,
         dropoffFlightNo: dropoffKind === 'AIRPORT' ? dropoffFlightNo.trim() : undefined,
+        passengerCount,
         priceAmount: subtotal,
         ...(cs ? { childSeatsSummary: cs } : {}),
       };

@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../../constants/config';
+import { buildApiUrl } from '../../constants/config';
 import { ApiRequestError, readResponseErrorMessage } from '../../lib/apiErrors';
 import { buildApiHeaders } from '../../lib/apiHeaders';
 import { logger } from '../../lib/logger';
@@ -16,7 +16,7 @@ type FetchOptions = {
 
 async function apiRequest(path: string, options: FetchOptions = {}): Promise<Response> {
   const { method = 'GET', body, token, publicRequest } = options;
-  const url = `${API_BASE_URL}${path}`;
+  const url = buildApiUrl(path);
 
   const headers = buildApiHeaders({
     Accept: 'application/json',

@@ -15,13 +15,15 @@ React Native app powered by Expo.
 Create or update `app/.env`:
 
 ```env
-BASE_API_URL=https://your-backend-url/
+# FastAPI server-side (no trailing slash). Local dev:
+BASE_API_URL=http://localhost:8000
+# Physical device on same Wi‑Fi: http://<your-pc-ip>:8000
 ```
 
 Notes:
 
-- Keep the trailing slash in the URL.
-- For local backend testing from a real device, use an accessible URL (for example ngrok or LAN IP), not `localhost`.
+- The app calls versioned routes under `/api/v1` (for example `/api/v1/auth/verify-code`).
+- For local backend testing from a real device, use your PC's LAN IP or ngrok, not `localhost`.
 
 ## Install dependencies
 

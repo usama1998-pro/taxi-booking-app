@@ -1,4 +1,5 @@
 import { BOOKING_TIME_ZONE } from '../constants/timeZone';
+import { parseWallClockFromIso } from '../utils/formatDate';
 
 export const PICKUP_IN_PAST_MESSAGE = 'Pickup must be now or in the future.';
 
@@ -109,6 +110,15 @@ export function combineBookingDateAndTimeToIso(datePart: Date, timePart: Date): 
 
 /** Populate date/time pickers from a stored pickup instant (Barcelona wall clock). */
 export function bookingPickerDatesFromIso(iso: string): { date: Date; time: Date } {
+  const wall = parseWallClockFromIso(iso);
+  if (wall) {
+    const [year, month, day] = wall.dateYmd.split('-').map((part) => Number.parseInt(part, 10));
+    const [hour, minute] = wall.timeHm.split(':').map((part) => Number.parseInt(part, 10));
+    const date = new Date(year, month - 1, day);
+    const time = new Date();
+    time.setHours(hour, minute, 0, 0);
+    return { date, time };
+  }
   const { year, month, day, hour, minute } = getZonedDateTimeParts(new Date(iso));
   const date = new Date(year, month - 1, day);
   const time = new Date();

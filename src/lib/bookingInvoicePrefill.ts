@@ -8,7 +8,13 @@ import {
 } from "./bookingFormat";
 import { phoneForDisplay } from "./phoneFormat";
 
+import { parseWallClockFromIso } from "../utils/formatDate";
+
 function scheduledLocalYmd(iso: string): string | null {
+  const wall = parseWallClockFromIso(iso);
+  if (wall) {
+    return wall.dateYmd;
+  }
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) {
     return null;

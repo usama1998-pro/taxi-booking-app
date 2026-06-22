@@ -1,11 +1,16 @@
 import { BOOKING_TIME_ZONE } from '../constants/timeZone';
+import { parseWallClockFromIso } from '../utils/formatDate';
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
 }
 
-/** `YYYY-MM-DD` in {@link BOOKING_TIME_ZONE} from a pickup instant. */
+/** `YYYY-MM-DD` from a pickup instant (wall-clock literal or timezone-aware). */
 export function bookingDayKeyFromIso(iso: string): string {
+  const wall = parseWallClockFromIso(iso);
+  if (wall) {
+    return wall.dateYmd;
+  }
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: BOOKING_TIME_ZONE,
     year: 'numeric',

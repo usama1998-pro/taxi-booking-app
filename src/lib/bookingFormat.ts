@@ -1,19 +1,19 @@
-import type { Booking } from '../types/booking';
+import type { Booking } from "../types/booking";
 
 function formatLocationJson(value: unknown): string {
   if (value == null) {
-    return '—';
+    return "—";
   }
-  if (typeof value === 'string') {
-    return value || '—';
+  if (typeof value === "string") {
+    return value || "—";
   }
-  if (typeof value === 'object' && !Array.isArray(value)) {
+  if (typeof value === "object" && !Array.isArray(value)) {
     const o = value as Record<string, unknown>;
     const label =
-      (typeof o.label === 'string' && o.label) ||
-      (typeof o.address === 'string' && o.address) ||
-      (typeof o.formattedAddress === 'string' && o.formattedAddress) ||
-      (typeof o.name === 'string' && o.name);
+      (typeof o.label === "string" && o.label) ||
+      (typeof o.address === "string" && o.address) ||
+      (typeof o.formattedAddress === "string" && o.formattedAddress) ||
+      (typeof o.name === "string" && o.name);
     if (label) {
       return label;
     }
@@ -28,22 +28,22 @@ function formatLocationJson(value: unknown): string {
 /** Place name from pickup JSON (`label` / `name` only — matches backend storage). */
 function pickupLocationNameOnly(value: unknown): string {
   if (value == null) {
-    return '—';
+    return "—";
   }
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     const s = value.trim();
-    return s || '—';
+    return s || "—";
   }
   const o = readLocationJson(value);
   if (o) {
     const name =
-      (typeof o.label === 'string' && o.label.trim()) ||
-      (typeof o.name === 'string' && o.name.trim());
+      (typeof o.label === "string" && o.label.trim()) ||
+      (typeof o.name === "string" && o.name.trim());
     if (name) {
       return name;
     }
   }
-  return '—';
+  return "—";
 }
 
 export function bookingPickupLabel(b: Booking): string {
@@ -65,13 +65,13 @@ export function bookingToDisplay(b: Booking): string {
 }
 
 function readLocationJson(value: unknown): Record<string, unknown> | null {
-  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
     return value as Record<string, unknown>;
   }
   return null;
 }
 
-const SHORT_AIRPORT_LABEL = 'Barcelona Airport';
+const SHORT_AIRPORT_LABEL = "Barcelona Airport";
 const LIST_LABEL_MAX = 48;
 /** Collapse only default Barcelona BCN labels on list cards; keep driver-edited airport names. */
 const KNOWN_BCN_LABEL = /^Barcelona[- ]?El Prat/i;
@@ -81,21 +81,21 @@ function locationJsonIsAirport(o: Record<string, unknown> | null): boolean {
   if (!o) {
     return false;
   }
-  if (o.kind === 'airport') {
+  if (o.kind === "airport") {
     return true;
   }
   const label =
-    (typeof o.label === 'string' && o.label) ||
-    (typeof o.address === 'string' && o.address) ||
-    (typeof o.formattedAddress === 'string' && o.formattedAddress) ||
-    '';
+    (typeof o.label === "string" && o.label) ||
+    (typeof o.address === "string" && o.address) ||
+    (typeof o.formattedAddress === "string" && o.formattedAddress) ||
+    "";
   return AIRPORT_TEXT.test(label);
 }
 
 function labelForListDisplay(text: string): string {
   const t = text.trim();
-  if (!t || t === '—') {
-    return t || '—';
+  if (!t || t === "—") {
+    return t || "—";
   }
   if (KNOWN_BCN_LABEL.test(t)) {
     return SHORT_AIRPORT_LABEL;
@@ -108,7 +108,7 @@ function labelForListDisplay(text: string): string {
 
 function locationDisplayForList(value: unknown, fullDisplay: string): string {
   const fromJson = formatLocationJson(value);
-  const base = fromJson !== '—' ? fromJson : fullDisplay;
+  const base = fromJson !== "—" ? fromJson : fullDisplay;
   return labelForListDisplay(base);
 }
 
@@ -128,7 +128,7 @@ export function isPickupAirportBooking(b: Booking): boolean {
   if (!o) {
     return false;
   }
-  if (o.kind === 'airport') {
+  if (o.kind === "airport") {
     return true;
   }
   return locationJsonIsAirport(o);
@@ -140,7 +140,7 @@ export function isDropoffAirportBooking(b: Booking): boolean {
   if (!o) {
     return false;
   }
-  if (o.kind === 'airport') {
+  if (o.kind === "airport") {
     return true;
   }
   return locationJsonIsAirport(o);
@@ -153,7 +153,7 @@ export function pickupArrivalAirline(b: Booking): string | null {
     return null;
   }
   const a = o?.airline;
-  return typeof a === 'string' && a.trim() ? a.trim() : null;
+  return typeof a === "string" && a.trim() ? a.trim() : null;
 }
 
 /** Flight on airport pickup JSON, else top-level `flightNumber` when set. */
@@ -161,7 +161,7 @@ export function pickupArrivalFlight(b: Booking): string | null {
   const o = readLocationJson(b.pickupLocation);
   if (isPickupAirportBooking(b)) {
     const f = o?.flight;
-    if (typeof f === 'string' && f.trim()) {
+    if (typeof f === "string" && f.trim()) {
       return f.trim();
     }
   }
@@ -174,7 +174,7 @@ export function bookingReturnTimeIso(b: Booking): string | null {
   if (raw == null) {
     return null;
   }
-  if (typeof raw === 'string') {
+  if (typeof raw === "string") {
     const s = raw.trim();
     return s || null;
   }
@@ -203,31 +203,50 @@ export type DropoffReturnFlightInfo = {
 /**
  * Return / outbound leg at airport (dropoff JSON + `returnTime`), when driver captured them.
  */
-export function dropoffReturnFlightInfo(b: Booking): DropoffReturnFlightInfo | null {
+export function dropoffReturnFlightInfo(
+  b: Booking,
+): DropoffReturnFlightInfo | null {
   const o = readLocationJson(b.dropoffLocation);
+  const isApp = isAppBooking(b);
   const airline =
-    typeof o?.airline === 'string' && o.airline.trim() ? o.airline.trim() : null;
-  let flight = typeof o?.flight === 'string' && o.flight.trim() ? o.flight.trim() : null;
+    typeof o?.airline === "string" && o.airline.trim()
+      ? o.airline.trim()
+      : null;
+  let flight =
+    typeof o?.flight === "string" && o.flight.trim() ? o.flight.trim() : null;
   if (!flight && isDropoffAirportBooking(b)) {
     flight = b.flightNumber?.trim() || null;
   }
   const returnTimeIso = bookingReturnTimeIso(b);
   const isViator = isViatorEmailBooking(b);
   const departureTimeLabel =
-    !isViator &&
-    typeof o?.departureTime === 'string' &&
-    o.departureTime.trim()
+    !isViator && typeof o?.departureTime === "string" && o.departureTime.trim()
       ? o.departureTime.trim()
       : null;
   const departureDateIso =
     returnTimeIso ??
-    (!isViator && isDropoffAirportBooking(b) && b.scheduledTime?.trim()
+    (!isViator &&
+    !isApp &&
+    isDropoffAirportBooking(b) &&
+    b.scheduledTime?.trim()
       ? b.scheduledTime.trim()
       : null);
-  if (!airline && !flight && !returnTimeIso && !departureTimeLabel && !departureDateIso) {
+  if (
+    !airline &&
+    !flight &&
+    !returnTimeIso &&
+    !departureTimeLabel &&
+    !departureDateIso
+  ) {
     return null;
   }
-  return { airline, flight, returnTimeIso, departureTimeLabel, departureDateIso };
+  return {
+    airline,
+    flight,
+    returnTimeIso,
+    departureTimeLabel,
+    departureDateIso,
+  };
 }
 
 export type DropoffDepartureDisplay = {
@@ -237,7 +256,9 @@ export type DropoffDepartureDisplay = {
 };
 
 /** Departure date/time for airport drop-off rows on the driver detail screen. */
-export function dropoffDepartureDisplay(b: Booking): DropoffDepartureDisplay | null {
+export function dropoffDepartureDisplay(
+  b: Booking,
+): DropoffDepartureDisplay | null {
   if (isViatorEmailBooking(b)) {
     return null;
   }
@@ -248,10 +269,17 @@ export function dropoffDepartureDisplay(b: Booking): DropoffDepartureDisplay | n
   if (!info) {
     return null;
   }
+  const hideDate = isAppBooking(b);
+  const dateIso = hideDate ? null : info.returnTimeIso ?? info.departureDateIso;
+  const timeIso = info.returnTimeIso;
+  const timeLabel = info.returnTimeIso ? null : info.departureTimeLabel;
+  if (!dateIso && !timeIso && !timeLabel) {
+    return null;
+  }
   return {
-    dateIso: info.returnTimeIso ?? info.departureDateIso,
-    timeIso: info.returnTimeIso,
-    timeLabel: info.returnTimeIso ? null : info.departureTimeLabel,
+    dateIso,
+    timeIso,
+    timeLabel,
   };
 }
 
@@ -259,12 +287,12 @@ export type BookingFlightLine = { flight: string; airline?: string };
 
 export function bookingFlightLine(b: Booking): BookingFlightLine | null {
   const loc = b.pickupLocation;
-  if (typeof loc === 'object' && loc !== null && !Array.isArray(loc)) {
+  if (typeof loc === "object" && loc !== null && !Array.isArray(loc)) {
     const o = loc as Record<string, unknown>;
-    const airline = typeof o.airline === 'string' ? o.airline.trim() : '';
-    const flight = typeof o.flight === 'string' ? o.flight.trim() : '';
+    const airline = typeof o.airline === "string" ? o.airline.trim() : "";
+    const flight = typeof o.flight === "string" ? o.flight.trim() : "";
     if (airline || flight) {
-      return { flight: flight || '—', airline: airline || undefined };
+      return { flight: flight || "—", airline: airline || undefined };
     }
   }
   const fn = b.flightNumber?.trim();
@@ -275,30 +303,30 @@ export function bookingFlightLine(b: Booking): BookingFlightLine | null {
 }
 
 function guestAppEmail(email: string): boolean {
-  return email.startsWith('guest.') && email.endsWith('@taxibarcelona24.guest');
+  return email.startsWith("guest.") && email.endsWith("@taxibarcelona24.guest");
 }
 
 /** Reservation created in the mobile app (guest email from phone). */
 export function isAppBooking(b: Booking): boolean {
-  const email = (b.customerEmail || b.user?.email || '').toLowerCase();
+  const email = (b.customerEmail || b.user?.email || "").toLowerCase();
   return guestAppEmail(email);
 }
 
 /** Reservation imported from a Viator booking email (BR- reference or tagged note). */
 export function isViatorEmailBooking(b: Booking): boolean {
-  const email = (b.customerEmail || b.user?.email || '').toLowerCase();
+  const email = (b.customerEmail || b.user?.email || "").toLowerCase();
   if (guestAppEmail(email)) {
     return false;
   }
-  if (email.startsWith('viator.')) {
+  if (email.startsWith("viator.")) {
     return true;
   }
-  const note = (b.note ?? '').trim();
-  if (note.startsWith('[Viator')) {
+  const note = (b.note ?? "").trim();
+  if (note.startsWith("[Viator")) {
     return true;
   }
-  const ref = (b.bookingReference ?? '').trim().toUpperCase();
-  return ref.startsWith('BR-');
+  const ref = (b.bookingReference ?? "").trim().toUpperCase();
+  return ref.startsWith("BR-");
 }
 
 /** Reservation submitted via the public website (real customer email). */
@@ -306,52 +334,52 @@ export function isWebsiteBooking(b: Booking): boolean {
   return !isViatorEmailBooking(b) && !isAppBooking(b);
 }
 
-export type BookingSourceIcon = 'mail' | 'phone-portrait' | 'globe';
+export type BookingSourceIcon = "mail" | "phone-portrait" | "globe";
 
 /** Viator email vs app vs website icon on list cards. */
 export function bookingSourceIcon(b: Booking): BookingSourceIcon {
   if (isViatorEmailBooking(b)) {
-    return 'mail';
+    return "mail";
   }
   if (isAppBooking(b)) {
-    return 'phone-portrait';
+    return "phone-portrait";
   }
-  return 'globe';
+  return "globe";
 }
 
 export function bookingSourceAccessibilityLabel(b: Booking): string {
   if (isViatorEmailBooking(b)) {
-    return 'Viator email booking';
+    return "Viator email booking";
   }
   if (isAppBooking(b)) {
-    return 'App booking';
+    return "App booking";
   }
-  return 'Website booking';
+  return "Website booking";
 }
 
 /** List card tint per booking source. */
 export function bookingSourceIconColor(b: Booking): string {
   if (isViatorEmailBooking(b)) {
-    return '#1E88E5';
+    return "#1E88E5";
   }
   if (isAppBooking(b)) {
-    return '#43A047';
+    return "#43A047";
   }
-  return '#F57C00';
+  return "#F57C00";
 }
 
 /** Header + section bar color on the booking detail screen. */
 export function bookingDetailAccentColor(b: Booking): string {
   if (isAppBooking(b)) {
-    return '#43A047';
+    return "#43A047";
   }
   if (isViatorEmailBooking(b)) {
-    return '#1E88E5';
+    return "#1E88E5";
   }
   if (isWebsiteBooking(b)) {
-    return '#F57C00';
+    return "#F57C00";
   }
-  return '#2196F3';
+  return "#2196F3";
 }
 
 export function bookingPassengerLabel(b: Booking): string {
@@ -360,7 +388,7 @@ export function bookingPassengerLabel(b: Booking): string {
     b.user?.fullName?.trim() ||
     b.customerEmail ||
     b.user?.email ||
-    'Passenger'
+    "Passenger"
   );
 }
 
@@ -377,21 +405,21 @@ export function bookingChildSeatsSummary(b: Booking): string | null {
   }
   const parts: string[] = [];
   if (infant > 0) {
-    parts.push(`${infant} infant carrier${infant === 1 ? '' : 's'}`);
+    parts.push(`${infant} infant carrier${infant === 1 ? "" : "s"}`);
   }
   if (child > 0) {
-    parts.push(`${child} child seat${child === 1 ? '' : 's'}`);
+    parts.push(`${child} child seat${child === 1 ? "" : "s"}`);
   }
   if (booster > 0) {
-    parts.push(`${booster} booster${booster === 1 ? '' : 's'}`);
+    parts.push(`${booster} booster${booster === 1 ? "" : "s"}`);
   }
-  return parts.join(', ');
+  return parts.join(", ");
 }
 
-export function formatMoney(amount: number, currency = 'EUR'): string {
+export function formatMoney(amount: number, currency = "EUR"): string {
   try {
     return new Intl.NumberFormat(undefined, {
-      style: 'currency',
+      style: "currency",
       currency,
       maximumFractionDigits: 2,
     }).format(amount);

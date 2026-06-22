@@ -120,6 +120,16 @@ function formatTime24(d: Date): string {
   return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
+function timeFromDepartureLabel(label: string, fallback: Date): Date {
+  const match = label.trim().match(/^(\d{1,2}):(\d{2})/);
+  if (!match) {
+    return fallback;
+  }
+  const next = new Date(fallback);
+  next.setHours(Number.parseInt(match[1], 10), Number.parseInt(match[2], 10), 0, 0);
+  return next;
+}
+
 function formatTime12(d: Date): string {
   return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
 }
@@ -265,8 +275,15 @@ export function EditReservationScreen() {
       setDropoffFlight(
         jsonString(b.dropoffLocation, 'flight') || b.flightNumber?.trim() || '',
       );
+      const departureTimeLabel = jsonString(b.dropoffLocation, 'departureTime');
       const returnIso = bookingReturnTimeIso(b);
-      setDropoffTime(returnIso ? bookingPickerDatesFromIso(returnIso).time : time);
+      if (departureTimeLabel) {
+        setDropoffTime(timeFromDepartureLabel(departureTimeLabel, time));
+      } else if (returnIso) {
+        setDropoffTime(bookingPickerDatesFromIso(returnIso).time);
+      } else {
+        setDropoffTime(time);
+      }
     } else {
       setDropoffKind('location');
       const label = jsonString(b.dropoffLocation, 'label');
@@ -397,6 +414,15 @@ export function EditReservationScreen() {
         kind: 'airport',
         label: dropoffAirportLabel.trim() || FIXED_AIRPORT_LABEL,
       };
+      const da = dropoffAirline.trim();
+      const df = dropoffFlight.trim();
+      if (da) {
+        dropoffLocation.airline = da;
+      }
+      if (df) {
+        dropoffLocation.flight = df;
+      }
+      dropoffLocation.departureTime = formatTime24(dropoffTime);
       returnTime = null;
     } else if (dropoffSimpleStreet) {
       dropoffLocation = {
@@ -486,8 +512,6 @@ export function EditReservationScreen() {
     if (k === 'airport') {
       setDropoffSimpleStreet(false);
       setDropoffDetail('');
-      setDropoffAirline('');
-      setDropoffFlight('');
     } else {
       setDropoffSimpleStreet(false);
       setDropoffDetail('');
@@ -768,16 +792,53 @@ export function EditReservationScreen() {
           </View>
 
           {dropoffKind === 'airport' ? (
-            <FormFieldSlot fieldId="dropoffAirport" onLayout={onFieldLayout}>
-              <TextInput
-                style={styles.darkerBarInput}
-                placeholder="Airport name"
-                placeholderTextColor="rgba(255,255,255,0.75)"
-                value={dropoffAirportLabel}
-                onChangeText={setDropoffAirportLabel}
-                onFocus={() => onFieldFocus('dropoffAirport')}
-              />
-            </FormFieldSlot>
+            <>
+              <FormFieldSlot fieldId="dropoffAirline" onLayout={onFieldLayout}>
+                <View style={styles.airportTripleBar}>
+                  <View style={styles.tripleCell}>
+                    <Text style={styles.tripleHint}>Airline</Text>
+                    <TextInput
+                      style={styles.tripleInput}
+                      placeholder="Airline"
+                      placeholderTextColor="rgba(255,255,255,0.6)"
+                      value={dropoffAirline}
+                      onChangeText={setDropoffAirline}
+                      onFocus={() => onFieldFocus('dropoffAirline')}
+                      autoCapitalize="characters"
+                    />
+                  </View>
+                  <View style={styles.tripleDivider} />
+                  <View style={styles.tripleCell}>
+                    <Text style={styles.tripleHint}>Flight (optional)</Text>
+                    <TextInput
+                      style={styles.tripleInput}
+                      placeholder="Flight (optional)"
+                      placeholderTextColor="rgba(255,255,255,0.6)"
+                      value={dropoffFlight}
+                      onChangeText={setDropoffFlight}
+                      onFocus={() => onFieldFocus('dropoffAirline')}
+                      autoCapitalize="characters"
+                    />
+                  </View>
+                  <View style={styles.tripleDivider} />
+                  <Pressable style={styles.tripleCell} onPress={() => setPickerTarget('dropoffTime')}>
+                    <Text style={styles.tripleHint}>Time</Text>
+                    <Text style={styles.tripleTime}>{formatTime24(dropoffTime)}</Text>
+                    <Text style={styles.tripleTimeSmall}>{formatTime12(dropoffTime)}</Text>
+                  </Pressable>
+                </View>
+              </FormFieldSlot>
+              <FormFieldSlot fieldId="dropoffAirport" onLayout={onFieldLayout}>
+                <TextInput
+                  style={styles.darkerBarInput}
+                  placeholder="Airport name"
+                  placeholderTextColor="rgba(255,255,255,0.75)"
+                  value={dropoffAirportLabel}
+                  onChangeText={setDropoffAirportLabel}
+                  onFocus={() => onFieldFocus('dropoffAirport')}
+                />
+              </FormFieldSlot>
+            </>
           ) : dropoffSimpleStreet ? (
             <FormFieldSlot fieldId="dropoffDetail" onLayout={onFieldLayout}>
               <TextInput

@@ -24,6 +24,11 @@ import ViewShot, { captureRef } from 'react-native-view-shot';
 
 import { Screen } from '../../components';
 import { BOOKING_TIME_ZONE } from '../../constants/timeZone';
+import {
+  formatBookingWallClockDate,
+  formatDateOnly,
+  formatTimeOnly,
+} from '../../utils/formatDate';
 import { useAuth } from '../../context/AuthContext';
 import {
   bookingChildSeatsSummary,
@@ -37,6 +42,7 @@ import {
   bookingToDisplay,
   dropoffDepartureDisplay,
   dropoffReturnFlightInfo,
+  isAppBooking,
   isDropoffAirportBooking,
   isPickupAirportBooking,
   isWebsiteBooking,
@@ -98,30 +104,11 @@ async function copyStringToClipboard(value: string): Promise<boolean> {
 }
 
 function formatPickupDate(iso: string): string {
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      weekday: 'short',
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      timeZone: BOOKING_TIME_ZONE,
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
+  return formatBookingWallClockDate(iso) ?? formatDateOnly(iso);
 }
 
 function formatPickupTime(iso: string): string {
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-      timeZone: BOOKING_TIME_ZONE,
-    }).format(new Date(iso));
-  } catch {
-    return '';
-  }
+  return formatTimeOnly(iso);
 }
 
 function formatReturnDate(iso: string): string {
@@ -479,6 +466,29 @@ export function BookingDetailScreen() {
                     <InfoRow label="Arrival flight" value={arrivalFlight ?? '—'} />
                   </>
                 ) : null}
+                {isDropoffAirportBooking(b) ||
+                dropoffFlightInfo?.flight ||
+                dropoffFlightInfo?.airline ||
+                dropoffDeparture ? (
+                  <>
+                    <InfoRow label="Departure airline" value={dropoffFlightInfo?.airline ?? '—'} />
+                    <InfoRow label="Departure flight" value={dropoffFlightInfo?.flight ?? '—'} />
+                    {!isAppBooking(b) && dropoffDeparture?.dateIso ? (
+                      <InfoRow
+                        label="Departure Date"
+                        value={formatReturnDate(dropoffDeparture.dateIso)}
+                      />
+                    ) : null}
+                    <InfoRow
+                      label="Departure Time"
+                      value={
+                        dropoffDeparture?.timeIso
+                          ? formatReturnTime(dropoffDeparture.timeIso)
+                          : dropoffDeparture?.timeLabel ?? '—'
+                      }
+                    />
+                  </>
+                ) : null}
                 {childSeats ? <InfoRow label="Child seats" value={childSeats} /> : null}
                 {hasReturnTrip && returnTimeIso ? (
                   <>
@@ -506,35 +516,6 @@ export function BookingDetailScreen() {
                       : undefined
                   }
                 />
-                {isDropoffAirportBooking(b) ||
-                dropoffFlightInfo?.flight ||
-                dropoffFlightInfo?.airline ||
-                dropoffDeparture ? (
-                  <>
-                    <InfoRow label="Departure airline" value={dropoffFlightInfo?.airline ?? '—'} />
-                    <InfoRow label="Departure flight" value={dropoffFlightInfo?.flight ?? '—'} />
-                    {dropoffDeparture ? (
-                      <>
-                        <InfoRow
-                          label="Departure Date"
-                          value={
-                            dropoffDeparture.dateIso
-                              ? formatReturnDate(dropoffDeparture.dateIso)
-                              : '—'
-                          }
-                        />
-                        <InfoRow
-                          label="Departure Time"
-                          value={
-                            dropoffDeparture.timeIso
-                              ? formatReturnTime(dropoffDeparture.timeIso)
-                              : dropoffDeparture.timeLabel ?? '—'
-                          }
-                        />
-                      </>
-                    ) : null}
-                  </>
-                ) : null}
               </Section>
 
               <Section title="Customer Information" accentColor={accentColor}>

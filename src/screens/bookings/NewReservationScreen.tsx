@@ -40,7 +40,7 @@ const KEYBOARD_SCROLL_EXTRA_PAD = 280;
 
 type LocationKind = 'location' | 'airport';
 
-type PickerTarget = 'time' | 'date' | null;
+type PickerTarget = 'time' | 'date' | 'dropoffTime' | null;
 
 function guestEmailFromPhone(phone: string): string {
   const digits = phone.replace(/\D/g, '');
@@ -65,7 +65,7 @@ function buildStreetLocation(detail: string): Record<string, unknown> {
 
 function buildAirportLocation(
   airportLabel: string,
-  options?: { airline?: string; flight?: string },
+  options?: { airline?: string; flight?: string; departureTime?: string },
 ): Record<string, unknown> {
   const loc: Record<string, unknown> = {
     kind: 'airport',
@@ -73,11 +73,15 @@ function buildAirportLocation(
   };
   const a = options?.airline?.trim();
   const f = options?.flight?.trim();
+  const t = options?.departureTime?.trim();
   if (a) {
     loc.airline = a;
   }
   if (f) {
     loc.flight = f;
+  }
+  if (t) {
+    loc.departureTime = t;
   }
   return loc;
 }
@@ -130,6 +134,9 @@ export function NewReservationScreen() {
   const [pickupFlight, setPickupFlight] = useState('');
   const [dropoffDetail, setDropoffDetail] = useState('');
   const [dropoffAirportLabel, setDropoffAirportLabel] = useState(FIXED_AIRPORT_LABEL);
+  const [dropoffAirline, setDropoffAirline] = useState('');
+  const [dropoffFlight, setDropoffFlight] = useState('');
+  const [dropoffDepartureTime, setDropoffDepartureTime] = useState(() => new Date());
   const [notes, setNotes] = useState('');
 
   const [pickerTarget, setPickerTarget] = useState<PickerTarget>(null);
@@ -164,6 +171,8 @@ export function NewReservationScreen() {
         setPuTime(selected);
       } else if (pickerTarget === 'date') {
         setPuDate(selected);
+      } else if (pickerTarget === 'dropoffTime') {
+        setDropoffDepartureTime(selected);
       }
     },
     [pickerTarget],
@@ -248,7 +257,11 @@ export function NewReservationScreen() {
 
     const dropoffLocation: Record<string, unknown> =
       dropoffKind === 'airport'
-        ? buildAirportLocation(dropoffAirportLabel)
+        ? buildAirportLocation(dropoffAirportLabel, {
+          airline: dropoffAirline,
+          flight: dropoffFlight,
+          departureTime: formatPuTime(dropoffDepartureTime),
+        })
         : buildStreetLocation(dropoffDetail);
 
     const flightNumber =
@@ -308,6 +321,9 @@ export function NewReservationScreen() {
     pickupFlight,
     dropoffDetail,
     dropoffAirportLabel,
+    dropoffAirline,
+    dropoffFlight,
+    dropoffDepartureTime,
     pickupKind,
     dropoffKind,
     notes,
@@ -529,16 +545,49 @@ export function NewReservationScreen() {
               />
             </FormFieldSlot>
           ) : (
-            <FormFieldSlot fieldId="dropoffAirport" onLayout={onFieldLayout}>
-              <TextInput
-                style={styles.darkerBarInput}
-                placeholder="Airport name"
-                placeholderTextColor="rgba(255,255,255,0.75)"
-                value={dropoffAirportLabel}
-                onChangeText={setDropoffAirportLabel}
-                onFocus={() => onFieldFocus('dropoffAirport')}
-              />
-            </FormFieldSlot>
+            <>
+              <FormFieldSlot fieldId="dropoffAirline" onLayout={onFieldLayout}>
+                <View style={styles.airportSplitBar}>
+                  <TextInput
+                    style={styles.airportSplitInput}
+                    placeholder="Airline (optional)"
+                    placeholderTextColor="rgba(255,255,255,0.65)"
+                    value={dropoffAirline}
+                    onChangeText={setDropoffAirline}
+                    onFocus={() => onFieldFocus('dropoffAirline')}
+                    autoCapitalize="characters"
+                  />
+                  <View style={styles.airportSplitDivider} />
+                  <TextInput
+                    style={styles.airportSplitInput}
+                    placeholder="Flight (optional)"
+                    placeholderTextColor="rgba(255,255,255,0.65)"
+                    value={dropoffFlight}
+                    onChangeText={setDropoffFlight}
+                    onFocus={() => onFieldFocus('dropoffAirline')}
+                    autoCapitalize="characters"
+                  />
+                  <View style={styles.airportSplitDivider} />
+                  <Pressable
+                    style={styles.airportTimeCell}
+                    onPress={() => setPickerTarget('dropoffTime')}
+                  >
+                    <Text style={styles.airportTimeHint}>Time</Text>
+                    <Text style={styles.airportTimeValue}>{formatPuTime(dropoffDepartureTime)}</Text>
+                  </Pressable>
+                </View>
+              </FormFieldSlot>
+              <FormFieldSlot fieldId="dropoffAirport" onLayout={onFieldLayout}>
+                <TextInput
+                  style={styles.darkerBarInput}
+                  placeholder="Airport name"
+                  placeholderTextColor="rgba(255,255,255,0.75)"
+                  value={dropoffAirportLabel}
+                  onChangeText={setDropoffAirportLabel}
+                  onFocus={() => onFieldFocus('dropoffAirport')}
+                />
+              </FormFieldSlot>
+            </>
           )}
 
           <FormFieldSlot fieldId="notes" onLayout={onFieldLayout}>
@@ -571,8 +620,14 @@ export function NewReservationScreen() {
 
       {pickerTarget && (
         <DateTimePicker
-          value={pickerTarget === 'time' ? puTime : puDate}
-          mode={pickerTarget === 'time' ? 'time' : 'date'}
+          value={
+            pickerTarget === 'time'
+              ? puTime
+              : pickerTarget === 'dropoffTime'
+                ? dropoffDepartureTime
+                : puDate
+          }
+          mode={pickerTarget === 'date' ? 'date' : 'time'}
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           onChange={onPickerChange}
         />
@@ -797,6 +852,24 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     backgroundColor: 'rgba(255,255,255,0.75)',
     marginHorizontal: spacing.xs,
+  },
+  airportTimeCell: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.xs,
+  },
+  airportTimeHint: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: formFont.barLabel,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  airportTimeValue: {
+    color: '#FFFFFF',
+    fontSize: formFont.airportInput,
+    fontWeight: '700',
   },
   darkerBarInput: {
     backgroundColor: darkerBlue,

@@ -12,7 +12,7 @@ import {
   bookingToDisplayForList,
 } from '../../lib/bookingFormat';
 import type { Booking } from '../../types/booking';
-import { BOOKING_TIME_ZONE } from '../../constants/timeZone';
+import { formatTimeOnly } from '../../utils/formatDate';
 import { spacing } from '../../theme';
 
 const brandBlue = '#1E88E5';
@@ -34,16 +34,7 @@ type Props = {
 };
 
 function formatListTime(iso: string): string {
-  try {
-    return new Intl.DateTimeFormat('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-      timeZone: BOOKING_TIME_ZONE,
-    }).format(new Date(iso));
-  } catch {
-    return '';
-  }
+  return formatTimeOnly(iso, 'en-US');
 }
 
 export function MyReservationsCard({

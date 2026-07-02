@@ -86,14 +86,6 @@ export function buildViatorBookingDetailRows(
     pushRow(rows, 'Arrival', arrivalParts.join(' · '));
   }
 
-  const departureParts = [
-    info.departureAirline,
-    info.departureFlightNo ? `flight ${info.departureFlightNo}` : undefined,
-  ].filter(Boolean);
-  if (departureParts.length > 0) {
-    pushRow(rows, 'Departure', departureParts.join(' · '));
-  }
-
   pushRow(rows, 'Language', info.language);
   pushRow(rows, 'Notes', info.specialRequirements);
 

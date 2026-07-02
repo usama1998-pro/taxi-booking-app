@@ -236,6 +236,8 @@ export function NewReservationScreen() {
     return basePad + KEYBOARD_SCROLL_EXTRA_PAD + keyboardBottomInset;
   }, [insets.bottom, keyboardBottomInset, keyboardOpen]);
 
+  const isCityToAirport = pickupKind === 'location' && dropoffKind === 'airport';
+
   const submit = useCallback(async () => {
     if (!user?.id) {
       Alert.alert('Session', 'You need to be signed in as a driver to create a booking.');
@@ -260,7 +262,7 @@ export function NewReservationScreen() {
         ? buildAirportLocation(dropoffAirportLabel, {
           airline: dropoffAirline,
           flight: dropoffFlight,
-          departureTime: formatPuTime(dropoffDepartureTime),
+          departureTime: isCityToAirport ? undefined : formatPuTime(dropoffDepartureTime),
         })
         : buildStreetLocation(dropoffDetail);
 
@@ -326,6 +328,7 @@ export function NewReservationScreen() {
     dropoffDepartureTime,
     pickupKind,
     dropoffKind,
+    isCityToAirport,
     notes,
     passengerCount,
     scheduledIso,
@@ -567,14 +570,18 @@ export function NewReservationScreen() {
                     onFocus={() => onFieldFocus('dropoffAirline')}
                     autoCapitalize="characters"
                   />
-                  <View style={styles.airportSplitDivider} />
-                  <Pressable
-                    style={styles.airportTimeCell}
-                    onPress={() => setPickerTarget('dropoffTime')}
-                  >
-                    <Text style={styles.airportTimeHint}>Time</Text>
-                    <Text style={styles.airportTimeValue}>{formatPuTime(dropoffDepartureTime)}</Text>
-                  </Pressable>
+                  {!isCityToAirport ? (
+                    <>
+                      <View style={styles.airportSplitDivider} />
+                      <Pressable
+                        style={styles.airportTimeCell}
+                        onPress={() => setPickerTarget('dropoffTime')}
+                      >
+                        <Text style={styles.airportTimeHint}>Time</Text>
+                        <Text style={styles.airportTimeValue}>{formatPuTime(dropoffDepartureTime)}</Text>
+                      </Pressable>
+                    </>
+                  ) : null}
                 </View>
               </FormFieldSlot>
               <FormFieldSlot fieldId="dropoffAirport" onLayout={onFieldLayout}>

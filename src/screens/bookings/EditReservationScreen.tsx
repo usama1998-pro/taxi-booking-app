@@ -217,6 +217,8 @@ export function EditReservationScreen() {
   const [pickerTarget, setPickerTarget] = useState<PickerTarget>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const isCityToAirport = pickupKind === 'location' && dropoffKind === 'airport';
+
   const goToBookingsList = useCallback(() => {
     const rootNav = getDriverRootNavigation(navigation);
     if (rootNav) {
@@ -422,7 +424,9 @@ export function EditReservationScreen() {
       if (df) {
         dropoffLocation.flight = df;
       }
-      dropoffLocation.departureTime = formatTime24(dropoffTime);
+      if (!isCityToAirport) {
+        dropoffLocation.departureTime = formatTime24(dropoffTime);
+      }
       returnTime = null;
     } else if (dropoffSimpleStreet) {
       dropoffLocation = {
@@ -490,6 +494,7 @@ export function EditReservationScreen() {
     dropoffAirline,
     dropoffFlight,
     dropoffTime,
+    isCityToAirport,
     puDate,
     notes,
     passengerCount,
@@ -820,12 +825,16 @@ export function EditReservationScreen() {
                       autoCapitalize="characters"
                     />
                   </View>
-                  <View style={styles.tripleDivider} />
-                  <Pressable style={styles.tripleCell} onPress={() => setPickerTarget('dropoffTime')}>
-                    <Text style={styles.tripleHint}>Time</Text>
-                    <Text style={styles.tripleTime}>{formatTime24(dropoffTime)}</Text>
-                    <Text style={styles.tripleTimeSmall}>{formatTime12(dropoffTime)}</Text>
-                  </Pressable>
+                  {!isCityToAirport ? (
+                    <>
+                      <View style={styles.tripleDivider} />
+                      <Pressable style={styles.tripleCell} onPress={() => setPickerTarget('dropoffTime')}>
+                        <Text style={styles.tripleHint}>Time</Text>
+                        <Text style={styles.tripleTime}>{formatTime24(dropoffTime)}</Text>
+                        <Text style={styles.tripleTimeSmall}>{formatTime12(dropoffTime)}</Text>
+                      </Pressable>
+                    </>
+                  ) : null}
                 </View>
               </FormFieldSlot>
               <FormFieldSlot fieldId="dropoffAirport" onLayout={onFieldLayout}>

@@ -146,6 +146,11 @@ export function isDropoffAirportBooking(b: Booking): boolean {
   return locationJsonIsAirport(o);
 }
 
+/** City/hotel pickup with airport drop-off (outbound flight only). */
+export function isCityToAirportBooking(b: Booking): boolean {
+  return !isPickupAirportBooking(b) && isDropoffAirportBooking(b);
+}
+
 /** Airline on airport pickup JSON (`pickupLocation.airline`), when set. */
 export function pickupArrivalAirline(b: Booking): string | null {
   const o = readLocationJson(b.pickupLocation);
@@ -156,20 +161,24 @@ export function pickupArrivalAirline(b: Booking): string | null {
   return typeof a === "string" && a.trim() ? a.trim() : null;
 }
 
-/** Flight on airport pickup JSON, else top-level `flightNumber` when set. */
+/** Flight on airport pickup JSON, else top-level `flightNumber` when pickup is airport. */
 export function pickupArrivalFlight(b: Booking): string | null {
   const o = readLocationJson(b.pickupLocation);
-  if (isPickupAirportBooking(b)) {
-    const f = o?.flight;
-    if (typeof f === "string" && f.trim()) {
-      return f.trim();
-    }
+  if (!isPickupAirportBooking(b)) {
+    return null;
+  }
+  const f = o?.flight;
+  if (typeof f === "string" && f.trim()) {
+    return f.trim();
   }
   const fn = b.flightNumber?.trim();
   return fn || null;
 }
 
 export function bookingReturnTimeIso(b: Booking): string | null {
+  if (isViatorEmailBooking(b)) {
+    return null;
+  }
   const raw = b.returnTime;
   if (raw == null) {
     return null;
@@ -259,7 +268,7 @@ export type DropoffDepartureDisplay = {
 export function dropoffDepartureDisplay(
   b: Booking,
 ): DropoffDepartureDisplay | null {
-  if (isViatorEmailBooking(b)) {
+  if (isViatorEmailBooking(b) || isCityToAirportBooking(b)) {
     return null;
   }
   if (!isDropoffAirportBooking(b)) {

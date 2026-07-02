@@ -45,6 +45,8 @@ import {
   isAppBooking,
   isDropoffAirportBooking,
   isPickupAirportBooking,
+  isCityToAirportBooking,
+  isViatorEmailBooking,
   isWebsiteBooking,
   pickupArrivalAirline,
   pickupArrivalFlight,
@@ -460,7 +462,8 @@ export function BookingDetailScreen() {
                   value={formatPickupTime(b.scheduledTime)}
                   valueBold
                 />
-                {isPickupAirportBooking(b) || arrivalFlight || arrivalAirline ? (
+                {!isCityToAirportBooking(b) &&
+                (isPickupAirportBooking(b) || arrivalFlight || arrivalAirline) ? (
                   <>
                     <InfoRow label="Arrival airline" value={arrivalAirline ?? '—'} />
                     <InfoRow label="Arrival flight" value={arrivalFlight ?? '—'} />
@@ -473,20 +476,22 @@ export function BookingDetailScreen() {
                   <>
                     <InfoRow label="Departure airline" value={dropoffFlightInfo?.airline ?? '—'} />
                     <InfoRow label="Departure flight" value={dropoffFlightInfo?.flight ?? '—'} />
-                    {!isAppBooking(b) && dropoffDeparture?.dateIso ? (
+                    {!dropoffDeparture?.dateIso ? null : (
                       <InfoRow
                         label="Departure Date"
                         value={formatReturnDate(dropoffDeparture.dateIso)}
                       />
-                    ) : null}
-                    <InfoRow
-                      label="Departure Time"
-                      value={
-                        dropoffDeparture?.timeIso
-                          ? formatReturnTime(dropoffDeparture.timeIso)
-                          : dropoffDeparture?.timeLabel ?? '—'
-                      }
-                    />
+                    )}
+                    {!dropoffDeparture ? null : (
+                      <InfoRow
+                        label="Departure Time"
+                        value={
+                          dropoffDeparture?.timeIso
+                            ? formatReturnTime(dropoffDeparture.timeIso)
+                            : dropoffDeparture?.timeLabel ?? '—'
+                        }
+                      />
+                    )}
                   </>
                 ) : null}
                 {childSeats ? <InfoRow label="Child seats" value={childSeats} /> : null}

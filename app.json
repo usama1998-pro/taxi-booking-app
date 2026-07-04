@@ -22,7 +22,9 @@
     },
     "android": {
       "label": "BarcelonaTaxi24",
-      "permissions": ["POST_NOTIFICATIONS"],
+      "permissions": [
+        "POST_NOTIFICATIONS"
+      ],
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -54,6 +56,13 @@
           "isAccessMediaLocationEnabled": false
         }
       ]
-    ]
+    ],
+    "extra": {
+      "BASE_API_URL": "http://localhost:8000",
+      "BOOKING_TIME_ZONE": "Europe/Madrid",
+      "eas": {
+        "projectId": "5388fe6c-9edc-4bce-b0f4-0adb6d5c242b"
+      }
+    }
   }
 }

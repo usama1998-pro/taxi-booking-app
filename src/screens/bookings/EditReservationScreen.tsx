@@ -26,6 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '../../context/AuthContext';
 import { getAppUiMessage } from '../../lib/apiErrors';
+import { markBookingMutated } from '../../lib/bookingsMutations';
 import {
   bookingDropoffLabel,
   bookingPickupLabel,
@@ -365,6 +366,12 @@ export function EditReservationScreen() {
     [pickerTarget],
   );
 
+  const openPicker = useCallback((target: Exclude<PickerTarget, null>) => {
+    // Close the text keyboard first so it never shows on top of the iOS spinner.
+    Keyboard.dismiss();
+    setPickerTarget(target);
+  }, []);
+
   const adjustPassengers = useCallback((delta: number) => {
     setPassengerCount((n) => Math.min(MAX_PASSENGERS_EDIT, Math.max(1, n + delta)));
   }, []);
@@ -469,6 +476,7 @@ export function EditReservationScreen() {
         returnTime,
         note: notes.trim() || null,
       });
+      markBookingMutated(uuid);
       goToBookingsList();
     } catch (e) {
       Alert.alert('Update failed', getAppUiMessage(e, 'Could not save changes. Please try again.'));
@@ -541,6 +549,8 @@ export function EditReservationScreen() {
   const onFieldFocus = useCallback(
     (id: string) => {
       lastFocusedField.current = id;
+      // A text field taking focus should close any open date/time spinner.
+      setPickerTarget(null);
       if (keyboardBottomInset > 0) {
         scrollFocusedFieldIntoView(id);
       }
@@ -642,11 +652,11 @@ export function EditReservationScreen() {
           />
 
           <View style={styles.blueBarThree}>
-            <Pressable style={styles.blueBarThird} onPress={() => setPickerTarget('time')}>
+            <Pressable style={styles.blueBarThird} onPress={() => openPicker('time')}>
               <Text style={styles.timePrimary}>{formatTime24(puTime)}</Text>
               <Text style={styles.timeSecondary}>{formatTime12(puTime)}</Text>
             </Pressable>
-            <Pressable style={[styles.blueBarThird, styles.barDividerLeft]} onPress={() => setPickerTarget('date')}>
+            <Pressable style={[styles.blueBarThird, styles.barDividerLeft]} onPress={() => openPicker('date')}>
               <Text style={styles.timePrimary}>{formatDateDash(puDate)}</Text>
               <Text style={styles.timeSecondary}>{formatDateOrdinalLine(puDate)}</Text>
             </Pressable>
@@ -828,7 +838,7 @@ export function EditReservationScreen() {
                   {!isCityToAirport ? (
                     <>
                       <View style={styles.tripleDivider} />
-                      <Pressable style={styles.tripleCell} onPress={() => setPickerTarget('dropoffTime')}>
+                      <Pressable style={styles.tripleCell} onPress={() => openPicker('dropoffTime')}>
                         <Text style={styles.tripleHint}>Time</Text>
                         <Text style={styles.tripleTime}>{formatTime24(dropoffTime)}</Text>
                         <Text style={styles.tripleTimeSmall}>{formatTime12(dropoffTime)}</Text>
@@ -889,7 +899,7 @@ export function EditReservationScreen() {
                     />
                   </View>
                   <View style={styles.tripleDivider} />
-                  <Pressable style={styles.tripleCell} onPress={() => setPickerTarget('dropoffTime')}>
+                  <Pressable style={styles.tripleCell} onPress={() => openPicker('dropoffTime')}>
                     <Text style={styles.tripleHint}>Time</Text>
                     <Text style={styles.tripleTime}>{formatTime24(dropoffTime)}</Text>
                     <Text style={styles.tripleTimeSmall}>{formatTime12(dropoffTime)}</Text>

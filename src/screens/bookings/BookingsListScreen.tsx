@@ -17,6 +17,7 @@ import {
   Text,
   TextInput,
   TouchableWithoutFeedback,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,6 +33,7 @@ import {
   bookingDayKeyFromIso,
   currentListWindowKey,
 } from '../../lib/bookingDayKey';
+import { consumePendingBookingMutations } from '../../lib/bookingsMutations';
 import { logger } from '../../lib/logger';
 import type { BookingsStackParamList } from '../../navigation/types';
 import { bookingsApi } from '../../services/bookings/bookingsApi';
@@ -106,7 +108,9 @@ export function BookingsListScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<BookingsStackParamList>>();
   const { accessToken, user } = useAuth();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const listRef = useRef<SectionList<Booking, Section>>(null);
+  const didInitialFocusRef = useRef(false);
   const appendLockRef = useRef(false);
   const onEndReachedDuringMomentumRef = useRef(false);
 
@@ -128,6 +132,7 @@ export function BookingsListScreen() {
   const [driverLabelDraft, setDriverLabelDraft] = useState('');
   const [bookingRefModalVisible, setBookingRefModalVisible] = useState(false);
   const [bookingRefDraft, setBookingRefDraft] = useState('');
+  const bookingRefInputRef = useRef<TextInput>(null);
   const activeRef = useRef(active);
   activeRef.current = active;
   const byScopeRef = useRef(byScope);
@@ -166,6 +171,17 @@ export function BookingsListScreen() {
       setDatePickerVisible(false);
     }
   }, [active]);
+
+  /**
+   * Anchor input popups near the top of the screen so the on-screen keyboard
+   * (bottom half) never covers the field, and the sheet never drops below the
+   * middle of the screen when the keyboard is closed. Static positioning avoids
+   * the Android `adjustResize` double-shift that pushed the sheet off-screen.
+   */
+  const inputModalOverlayStyle = useMemo(
+    () => ({ paddingTop: Math.max(insets.top + spacing.md, Math.round(windowHeight * 0.08)) }),
+    [insets.top, windowHeight],
+  );
 
   const openDriverLabelEditor = useCallback(
     (bookingUuid: string) => {
@@ -375,6 +391,66 @@ export function BookingsListScreen() {
     listRef.current?.scrollToLocation({ sectionIndex: 0, itemIndex: 0, animated: true });
   }, []);
 
+  /**
+   * Apply a single updated booking across all loaded scopes without touching
+   * array order/length elsewhere, so the list keeps its scroll position. If the
+   * booking's status moved it to a different scope (e.g. completed -> Past), drop
+   * it from scopes it no longer belongs to; the correct scope re-files it on its
+   * next full refresh.
+   */
+  const applyBookingUpdate = useCallback((updated: Booking) => {
+    const status = updated.status?.toLowerCase();
+    const targetScope: BookingListTimeScope | null =
+      status === 'completed' || status === 'cancelled' || status === 'canceled'
+        ? 'past'
+        : status === 'in_progress'
+          ? 'current'
+          : null;
+
+    setByScope((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      (Object.keys(prev) as BookingListTimeScope[]).forEach((scope) => {
+        const st = prev[scope];
+        const idx = st.items.findIndex((b) => b.uuid === updated.uuid);
+        if (idx < 0) {
+          return;
+        }
+        if (targetScope && targetScope !== scope) {
+          const items = st.items.slice();
+          items.splice(idx, 1);
+          next[scope] = { ...st, items, total: Math.max(0, st.total - 1) };
+        } else {
+          const items = st.items.slice();
+          items[idx] = updated;
+          next[scope] = { ...st, items };
+        }
+        changed = true;
+      });
+      return changed ? next : prev;
+    });
+  }, []);
+
+  const refreshMutatedBookings = useCallback(async () => {
+    if (!accessToken) {
+      return;
+    }
+    const uuids = consumePendingBookingMutations();
+    if (uuids.length === 0) {
+      return;
+    }
+    await Promise.all(
+      uuids.map(async (id) => {
+        try {
+          const updated = await bookingsApi.getByUuid(accessToken, id);
+          applyBookingUpdate(updated);
+        } catch (e) {
+          logger.warn('BookingsListScreen: in-place refresh failed', e);
+        }
+      }),
+    );
+  }, [accessToken, applyBookingUpdate]);
+
   const selectTab = useCallback(
     (scope: BookingListTimeScope) => {
       setActive(scope);
@@ -385,8 +461,17 @@ export function BookingsListScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      void refreshScope(activeRef.current).then(scrollListTop);
-    }, [refreshScope, scrollListTop]),
+      // The mount effect (deps: active/filterDate/query) performs the initial load.
+      // Skip that first focus to avoid a duplicate fetch. On every later focus
+      // (e.g. returning from a booking detail) keep the already-loaded pages and
+      // the current scroll position instead of resetting to page 1 / jumping to
+      // top; only the rows that actually changed are refreshed in place.
+      if (!didInitialFocusRef.current) {
+        didInitialFocusRef.current = true;
+        return;
+      }
+      void refreshMutatedBookings();
+    }, [refreshMutatedBookings]),
   );
 
   const runFullRefresh = useCallback(async () => {
@@ -746,7 +831,7 @@ export function BookingsListScreen() {
         onRequestClose={closeDriverLabelEditor}
       >
         <TouchableWithoutFeedback onPress={closeDriverLabelEditor}>
-          <View style={styles.driverLabelOverlay}>
+          <View style={[styles.driverLabelOverlay, inputModalOverlayStyle]}>
             <TouchableWithoutFeedback>
               <View style={styles.driverLabelSheet}>
                 <Text style={styles.driverLabelTitle}>Enter driver name</Text>
@@ -791,14 +876,22 @@ export function BookingsListScreen() {
         transparent
         animationType="fade"
         onRequestClose={closeBookingRefModal}
+        onShow={() => {
+          // autoFocus is unreliable inside an Android Modal; focus once the window is shown.
+          setTimeout(
+            () => bookingRefInputRef.current?.focus(),
+            Platform.OS === 'android' ? 150 : 0,
+          );
+        }}
       >
         <TouchableWithoutFeedback onPress={closeBookingRefModal}>
-          <View style={styles.driverLabelOverlay}>
+          <View style={[styles.driverLabelOverlay, inputModalOverlayStyle]}>
             <TouchableWithoutFeedback>
               <View style={styles.driverLabelSheet}>
                 <Text style={styles.driverLabelTitle}>Search by booking ref</Text>
                 <Text style={styles.driverLabelHint}>Tap Done to filter the list. Cancel discards changes.</Text>
                 <TextInput
+                  ref={bookingRefInputRef}
                   value={bookingRefDraft}
                   onChangeText={setBookingRefDraft}
                   placeholder="Booking reference"
@@ -806,7 +899,6 @@ export function BookingsListScreen() {
                   style={styles.driverLabelInput}
                   autoCapitalize="none"
                   autoCorrect={false}
-                  autoFocus
                 />
                 <View style={styles.bookingRefModalActions}>
                   <View style={styles.bookingRefModalLeft}>
@@ -1029,7 +1121,6 @@ const styles = StyleSheet.create({
   driverLabelOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
     alignItems: 'stretch',
     paddingHorizontal: spacing.lg,
   },
@@ -1037,6 +1128,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: spacing.lg,
+    maxHeight: '100%',
   },
   driverLabelTitle: {
     ...typography.subtitle,

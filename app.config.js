@@ -1,13 +1,15 @@
 /**
- * Extends `app.json`. Expo loads `.env` so `process.env.BASE_API_URL` is available when this runs.
+ * Extends `app.json`. Expo loads `.env` so `EXPO_PUBLIC_*` vars are available when this runs.
  */
 module.exports = ({ config }) => ({
   ...config,
   extra: {
     ...(config.extra ?? {}),
-    BASE_API_URL: (process.env.BASE_API_URL ?? 'http://localhost:8000').replace(/\/$/, ''),
+    BASE_API_URL: (
+      process.env.EXPO_PUBLIC_BASE_API_URL ?? 'http://localhost:8000'
+    ).replace(/\/$/, ''),
     BOOKING_TIME_ZONE:
-      process.env.BOOKING_TIME_ZONE?.trim() ||
+      process.env.EXPO_PUBLIC_BOOKING_TIME_ZONE?.trim() ||
       process.env.TZ?.trim() ||
       'Europe/Madrid',
   },

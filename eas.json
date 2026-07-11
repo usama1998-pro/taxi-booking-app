@@ -6,13 +6,25 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_BASE_API_URL": "https://taxibarcelonas.com",
+        "EXPO_PUBLIC_BOOKING_TIME_ZONE": "Europe/Madrid"
+      }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_BASE_API_URL": "https://taxibarcelonas.com",
+        "EXPO_PUBLIC_BOOKING_TIME_ZONE": "Europe/Madrid"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_BASE_API_URL": "https://taxibarcelonas.com",
+        "EXPO_PUBLIC_BOOKING_TIME_ZONE": "Europe/Madrid"
+      }
     }
   },
   "submit": {

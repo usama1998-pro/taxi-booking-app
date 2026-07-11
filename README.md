@@ -16,7 +16,7 @@ Create or update `app/.env`:
 
 ```env
 # FastAPI server-side (no trailing slash). Local dev:
-BASE_API_URL=http://localhost:8000
+EXPO_PUBLIC_BASE_API_URL=http://localhost:8000
 # Physical device on same Wi‑Fi: http://<your-pc-ip>:8000
 ```
 
@@ -39,13 +39,16 @@ Start Metro bundler:
 
 ```bash
 npm run start
+# or: npx expo start --clear --go
 ```
 
 Then choose one of the following:
 
-- Press `a` in terminal to open Android
+- Press `a` in terminal to open Android (Expo Go on emulator/device)
 - Press `i` in terminal to open iOS (macOS only)
 - Scan the QR code with Expo Go to run on a physical device
+
+> This project includes `expo-dev-client`. Plain `npx expo start` defaults to a **development build**, which Expo Go cannot open. Use `--go` (or press `s` in the Expo CLI) for Expo Go. For a custom native build: `npm run android` then `npm run start:dev-client`.
 
 ## Other useful scripts
 
@@ -63,6 +66,8 @@ Use EAS to create a production Android APK/AAB:
 npx eas build -p android --profile production
 ```
 
+EAS cloud builds do not use `app/.env`. Set `EXPO_PUBLIC_*` values per profile in `eas.json` under `build.<profile>.env` (see `preview` and `production`).
+
 If this is your first EAS build on this machine, run:
 
 ```bash
@@ -79,6 +84,6 @@ npx expo start --clear
 ```
 
 - If API calls fail, verify:
-  - `BASE_API_URL` value
+  - `EXPO_PUBLIC_BASE_API_URL` value
   - backend server is reachable
   - CORS/network access for your device/emulator

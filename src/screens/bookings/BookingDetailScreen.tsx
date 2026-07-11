@@ -52,6 +52,7 @@ import {
   pickupArrivalFlight,
 } from '../../lib/bookingFormat';
 import { getAppUiMessage } from '../../lib/apiErrors';
+import { markBookingMutated } from '../../lib/bookingsMutations';
 import { logger } from '../../lib/logger';
 import { phoneForDisplay } from '../../lib/phoneFormat';
 import type { BookingDetailHostStackParamList } from '../../navigation/types';
@@ -222,6 +223,7 @@ export function BookingDetailScreen() {
     try {
       const updated = await bookingsApi.update(accessToken, uuid, { status: 'completed' });
       setBooking(updated);
+      markBookingMutated(uuid);
       Alert.alert('Trip complete', 'This booking is now under Past. Latest completed trips stay at the top there.');
     } catch (e) {
       logger.warn('BookingDetailScreen: mark complete failed', e);
@@ -250,6 +252,7 @@ export function BookingDetailScreen() {
     try {
       const updated = await bookingsApi.update(accessToken, uuid, { status: 'in_progress' });
       setBooking(updated);
+      markBookingMutated(uuid);
       Alert.alert(
         'Ride started',
         'This booking is now under Current. Mark it complete when the trip ends.',

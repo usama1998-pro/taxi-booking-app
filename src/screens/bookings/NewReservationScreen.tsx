@@ -178,6 +178,12 @@ export function NewReservationScreen() {
     [pickerTarget],
   );
 
+  const openPicker = useCallback((target: Exclude<PickerTarget, null>) => {
+    // Close the text keyboard first so it never shows on top of the iOS spinner.
+    Keyboard.dismiss();
+    setPickerTarget(target);
+  }, []);
+
   const adjustPassengers = useCallback((delta: number) => {
     setPassengerCount((n) => Math.min(25, Math.max(1, n + delta)));
   }, []);
@@ -200,6 +206,8 @@ export function NewReservationScreen() {
   const onFieldFocus = useCallback(
     (id: string) => {
       lastFocusedField.current = id;
+      // A text field taking focus should close any open date/time spinner.
+      setPickerTarget(null);
       if (keyboardOpen) {
         scrollFocusedFieldIntoView(id);
       }
@@ -384,12 +392,12 @@ export function NewReservationScreen() {
           </FormFieldSlot>
 
           <View style={styles.blueBarThree}>
-            <Pressable style={styles.blueBarThird} onPress={() => setPickerTarget('time')}>
+            <Pressable style={styles.blueBarThird} onPress={() => openPicker('time')}>
               <Text style={styles.blueBarLabel}>PU TIME</Text>
               <View style={styles.blueBarUnderline} />
               <Text style={styles.blueBarValue}>{formatPuTime(puTime)}</Text>
             </Pressable>
-            <Pressable style={styles.blueBarThird} onPress={() => setPickerTarget('date')}>
+            <Pressable style={styles.blueBarThird} onPress={() => openPicker('date')}>
               <Text style={styles.blueBarLabel}>PU DATE</Text>
               <View style={styles.blueBarUnderline} />
               <Text style={styles.blueBarValue}>{formatPuDate(puDate)}</Text>
@@ -575,7 +583,7 @@ export function NewReservationScreen() {
                       <View style={styles.airportSplitDivider} />
                       <Pressable
                         style={styles.airportTimeCell}
-                        onPress={() => setPickerTarget('dropoffTime')}
+                        onPress={() => openPicker('dropoffTime')}
                       >
                         <Text style={styles.airportTimeHint}>Time</Text>
                         <Text style={styles.airportTimeValue}>{formatPuTime(dropoffDepartureTime)}</Text>

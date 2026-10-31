@@ -14,6 +14,8 @@ export type HomeStackParamList = {
   BookingDetail: { uuid: string };
   EditReservation: { uuid: string };
   PickupSign: PickupSignParams;
+  Prices: undefined;
+  Calculate: undefined;
 };
 
 export type BookingsStackParamList = {

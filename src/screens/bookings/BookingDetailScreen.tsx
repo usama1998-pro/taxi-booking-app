@@ -1,5 +1,5 @@
 import * as Clipboard from 'expo-clipboard';
-import * as MediaLibrary from 'expo-media-library';
+import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 import type { RouteProp } from '@react-navigation/native';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -90,11 +90,11 @@ function notifyCopiedAndroid() {
   }
 }
 
-function notifySavedToGallery() {
+function notifyShareUnavailable() {
   if (Platform.OS === 'android') {
-    ToastAndroid.show('Saved to gallery', ToastAndroid.SHORT);
+    ToastAndroid.show('Sharing is not available on this device', ToastAndroid.SHORT);
   } else {
-    Alert.alert('Saved', 'Screenshot saved to your photo library.');
+    Alert.alert('Unavailable', 'Sharing is not available on this device.');
   }
 }
 
@@ -293,24 +293,21 @@ export function BookingDetailScreen() {
     [qrPayload],
   );
 
-  const onSaveScreenshot = useCallback(async () => {
+  const onShareScreenshot = useCallback(async () => {
     if (savingScreenshot) {
       return;
     }
     setSavingScreenshot(true);
     try {
-      const permission = await MediaLibrary.requestPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert(
-          'Permission needed',
-          'Allow access to your photos so booking screenshots can be saved to the gallery.',
-        );
+      const shotRef = screenshotRef.current;
+      if (!shotRef) {
+        Alert.alert('Could not share', 'Screenshot is not ready yet. Try again.');
         return;
       }
 
-      const shotRef = screenshotRef.current;
-      if (!shotRef) {
-        Alert.alert('Could not save', 'Screenshot is not ready yet. Try again.');
+      const available = await Sharing.isAvailableAsync();
+      if (!available) {
+        notifyShareUnavailable();
         return;
       }
 
@@ -319,13 +316,19 @@ export function BookingDetailScreen() {
         quality: 1,
         result: 'tmpfile',
       });
-      await MediaLibrary.saveToLibraryAsync(uri);
-      notifySavedToGallery();
+
+      // Native share sheet (iOS UIActivityViewController / Android ACTION_SEND):
+      // includes Copy, Save Image, WhatsApp, Messages, and other share targets.
+      await Sharing.shareAsync(uri, {
+        mimeType: 'image/png',
+        dialogTitle: 'Share booking',
+        UTI: 'public.png',
+      });
     } catch (e) {
-      logger.warn('BookingDetailScreen: screenshot save failed', e);
+      logger.warn('BookingDetailScreen: screenshot share failed', e);
       Alert.alert(
-        'Could not save',
-        getAppUiMessage(e, 'Failed to save screenshot to the gallery.'),
+        'Could not share',
+        getAppUiMessage(e, 'Failed to open the share panel. Please try again.'),
       );
     } finally {
       setSavingScreenshot(false);
@@ -425,11 +428,11 @@ export function BookingDetailScreen() {
             </Text>
             <View style={styles.headerRight}>
               <Pressable
-                onPress={() => void onSaveScreenshot()}
+                onPress={() => void onShareScreenshot()}
                 disabled={savingScreenshot}
                 hitSlop={8}
                 accessibilityRole="button"
-                accessibilityLabel="Save screenshot to gallery"
+                accessibilityLabel="Share booking screenshot"
                 style={styles.headerActionBtn}
               >
                 {savingScreenshot ? (

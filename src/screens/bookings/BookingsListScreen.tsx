@@ -37,10 +37,6 @@ import { consumePendingBookingMutations } from '../../lib/bookingsMutations';
 import { logger } from '../../lib/logger';
 import type { BookingsStackParamList } from '../../navigation/types';
 import { bookingsApi } from '../../services/bookings/bookingsApi';
-import {
-  loadBookingDriverLabels,
-  saveBookingDriverLabels,
-} from '../../services/preferences/driverListLabelStorage';
 import type { Booking, BookingListTimeScope } from '../../types/booking';
 import { colors, spacing, typography } from '../../theme';
 
@@ -106,7 +102,7 @@ type Section = { title: string; dayKey: string; data: Booking[] };
 
 export function BookingsListScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<BookingsStackParamList>>();
-  const { accessToken, user } = useAuth();
+  const { accessToken } = useAuth();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const listRef = useRef<SectionList<Booking, Section>>(null);
@@ -126,10 +122,10 @@ export function BookingsListScreen() {
   const debouncedBookingRefQuery = useDebouncedValue(bookingRefQuery, BOOKING_REF_DEBOUNCE_MS);
   const [filterDate, setFilterDate] = useState<Date | null>(null);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
-  const [bookingDriverLabels, setBookingDriverLabels] = useState<Record<string, string>>({});
   const [editingBookingUuid, setEditingBookingUuid] = useState<string | null>(null);
   const [driverLabelModalVisible, setDriverLabelModalVisible] = useState(false);
   const [driverLabelDraft, setDriverLabelDraft] = useState('');
+  const [savingDriverLabel, setSavingDriverLabel] = useState(false);
   const [bookingRefModalVisible, setBookingRefModalVisible] = useState(false);
   const [bookingRefDraft, setBookingRefDraft] = useState('');
   const bookingRefInputRef = useRef<TextInput>(null);
@@ -151,22 +147,6 @@ export function BookingsListScreen() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!user?.id) {
-        return;
-      }
-      const map = await loadBookingDriverLabels(user.id);
-      if (!cancelled) {
-        setBookingDriverLabels(map);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id]);
-
-  useEffect(() => {
     if (active === 'current') {
       setDatePickerVisible(false);
     }
@@ -183,42 +163,38 @@ export function BookingsListScreen() {
     [insets.top, windowHeight],
   );
 
+  const findLoadedBooking = useCallback(
+    (bookingUuid: string): Booking | undefined => {
+      for (const scope of Object.keys(byScope) as BookingListTimeScope[]) {
+        const found = byScope[scope].items.find((b) => b.uuid === bookingUuid);
+        if (found) {
+          return found;
+        }
+      }
+      return undefined;
+    },
+    [byScope],
+  );
+
   const openDriverLabelEditor = useCallback(
     (bookingUuid: string) => {
       setEditingBookingUuid(bookingUuid);
-      const custom = bookingDriverLabels[bookingUuid]?.trim();
+      const custom = findLoadedBooking(bookingUuid)?.driverListLabel?.trim();
       setDriverLabelDraft(
         custom && custom.length > 0 ? custom : DEFAULT_DRIVER_LIST_LABEL,
       );
       setDriverLabelModalVisible(true);
     },
-    [bookingDriverLabels],
+    [findLoadedBooking],
   );
 
   const closeDriverLabelEditor = useCallback(() => {
-    setDriverLabelModalVisible(false);
-    setEditingBookingUuid(null);
-  }, []);
-
-  const saveDriverLabelDraft = useCallback(async () => {
-    if (!user?.id || !editingBookingUuid) {
-      setDriverLabelModalVisible(false);
-      setEditingBookingUuid(null);
+    if (savingDriverLabel) {
       return;
     }
-    const uuid = editingBookingUuid;
-    const trimmed = driverLabelDraft.trim();
-    const next = { ...bookingDriverLabels };
-    if (trimmed.length === 0 || trimmed === DEFAULT_DRIVER_LIST_LABEL) {
-      delete next[uuid];
-    } else {
-      next[uuid] = trimmed;
-    }
-    await saveBookingDriverLabels(user.id, next);
-    setBookingDriverLabels(next);
     setDriverLabelModalVisible(false);
     setEditingBookingUuid(null);
-  }, [driverLabelDraft, user?.id, editingBookingUuid, bookingDriverLabels]);
+  }, [savingDriverLabel]);
 
   const refreshScope = useCallback(
     async (scope: BookingListTimeScope) => {
@@ -430,6 +406,42 @@ export function BookingsListScreen() {
       return changed ? next : prev;
     });
   }, []);
+
+  const saveDriverLabelDraft = useCallback(async () => {
+    if (!accessToken || !editingBookingUuid || savingDriverLabel) {
+      setDriverLabelModalVisible(false);
+      setEditingBookingUuid(null);
+      return;
+    }
+    const uuid = editingBookingUuid;
+    const trimmed = driverLabelDraft.trim();
+    const nextLabel =
+      trimmed.length === 0 || trimmed === DEFAULT_DRIVER_LIST_LABEL ? null : trimmed;
+
+    setSavingDriverLabel(true);
+    try {
+      const updated = await bookingsApi.update(accessToken, uuid, {
+        driverListLabel: nextLabel,
+      });
+      applyBookingUpdate(updated);
+      setDriverLabelModalVisible(false);
+      setEditingBookingUuid(null);
+    } catch (e) {
+      logger.warn('BookingsListScreen: save driver list label failed', e);
+      Alert.alert(
+        'Could not save',
+        getAppUiMessage(e, 'Failed to save driver name. Please try again.'),
+      );
+    } finally {
+      setSavingDriverLabel(false);
+    }
+  }, [
+    accessToken,
+    editingBookingUuid,
+    driverLabelDraft,
+    savingDriverLabel,
+    applyBookingUpdate,
+  ]);
 
   const refreshMutatedBookings = useCallback(async () => {
     if (!accessToken) {
@@ -811,7 +823,7 @@ export function BookingsListScreen() {
             <MyReservationsCard
               booking={item}
               driverListLabel={
-                bookingDriverLabels[item.uuid]?.trim() || DEFAULT_DRIVER_LIST_LABEL
+                item.driverListLabel?.trim() || DEFAULT_DRIVER_LIST_LABEL
               }
               onPressDriverListLabel={() => openDriverLabelEditor(item.uuid)}
               onOpenDetail={() => navigation.navigate('BookingDetail', { uuid: item.uuid })}
@@ -847,22 +859,33 @@ export function BookingsListScreen() {
                   autoCapitalize="words"
                   autoCorrect={false}
                   maxLength={48}
+                  editable={!savingDriverLabel}
                 />
                 <View style={styles.driverLabelActions}>
                   <Pressable
                     onPress={closeDriverLabelEditor}
+                    disabled={savingDriverLabel}
                     style={({ pressed }) => [
                       styles.driverLabelBtnSecondary,
-                      pressed && styles.pressed,
+                      pressed && !savingDriverLabel && styles.pressed,
                     ]}
                   >
                     <Text style={styles.driverLabelBtnSecondaryText}>Cancel</Text>
                   </Pressable>
                   <Pressable
                     onPress={() => void saveDriverLabelDraft()}
-                    style={({ pressed }) => [styles.driverLabelBtnPrimary, pressed && styles.pressed]}
+                    disabled={savingDriverLabel}
+                    style={({ pressed }) => [
+                      styles.driverLabelBtnPrimary,
+                      pressed && !savingDriverLabel && styles.pressed,
+                      savingDriverLabel && styles.driverLabelBtnDisabled,
+                    ]}
                   >
-                    <Text style={styles.driverLabelBtnPrimaryText}>Save</Text>
+                    {savingDriverLabel ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.driverLabelBtnPrimaryText}>Save</Text>
+                    )}
                   </Pressable>
                 </View>
               </View>
@@ -1171,6 +1194,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     borderRadius: 8,
     backgroundColor: brandBlue,
+    minWidth: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  driverLabelBtnDisabled: {
+    opacity: 0.7,
   },
   driverLabelBtnPrimaryText: {
     ...typography.body,

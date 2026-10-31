@@ -38,6 +38,8 @@ export type Booking = {
   childSeatCount: number;
   boosterCount: number;
   note: string | null;
+  /** Optional list-only driver name label (PATCH `driverListLabel`). */
+  driverListLabel?: string | null;
   createdAt: string;
   /** Present when status is `completed`; used for past-list ordering on the server. */
   completedAt?: string | null;

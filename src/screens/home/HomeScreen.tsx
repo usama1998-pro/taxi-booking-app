@@ -1,4 +1,6 @@
 import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import Constants from 'expo-constants';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -13,7 +15,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { brandBlue, brandDisplayName } from '../../navigation/driverChrome';
 import { getDriverRootNavigation } from '../../navigation/getDriverRootNavigation';
+import type { HomeStackParamList } from '../../navigation/types';
 import { spacing, typography } from '../../theme';
+
+const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
 
 type MenuItem = {
   label: string;
@@ -22,7 +27,7 @@ type MenuItem = {
 
 export function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const homeStackNav = useNavigation();
+  const homeStackNav = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const rootNav = getDriverRootNavigation(homeStackNav);
   const { signOut, isSigningOut } = useAuth();
 
@@ -42,6 +47,14 @@ export function HomeScreen() {
           screen: 'InvoiceCreate',
           params: {},
         }),
+    },
+    {
+      label: 'PRICES',
+      onPress: () => homeStackNav.navigate('Prices'),
+    },
+    {
+      label: 'CALCULATE',
+      onPress: () => homeStackNav.navigate('Calculate'),
     },
   ];
 
@@ -92,6 +105,12 @@ export function HomeScreen() {
           </Pressable>
         ))}
       </ScrollView>
+
+      <View style={[styles.versionWrap, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
+        <Text style={styles.versionText} accessibilityLabel={`App version ${APP_VERSION}`}>
+          v{APP_VERSION}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -164,5 +183,16 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: 'uppercase',
     fontSize: 15,
+  },
+  versionWrap: {
+    alignItems: 'center',
+    paddingTop: spacing.sm,
+    paddingHorizontal: spacing.lg,
+  },
+  versionText: {
+    color: '#90A4AE',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
 });

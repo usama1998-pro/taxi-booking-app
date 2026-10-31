@@ -93,6 +93,19 @@ export async function apiPatchJson<T>(
   return JSON.parse(raw) as T;
 }
 
+export async function apiPutJson<T>(
+  path: string,
+  body: unknown,
+  token: string,
+): Promise<T> {
+  const res = await apiRequest(path, { method: 'PUT', body, token });
+  const raw = await res.text();
+  if (!raw) {
+    return undefined as T;
+  }
+  return JSON.parse(raw) as T;
+}
+
 export async function apiDelete(path: string, token: string): Promise<void> {
   await apiRequest(path, { method: 'DELETE', token });
 }

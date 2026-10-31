@@ -86,7 +86,7 @@ async function jsonRequest<T>(
     });
   } catch (e) {
     const raw = e instanceof Error ? e.message : String(e);
-    logger.error('Auth API network failure', { path, error: raw });
+    logger.error('Auth API network failure', { path, url, error: raw });
     throw new AuthRequestError(
       raw || 'Network error',
       0,
